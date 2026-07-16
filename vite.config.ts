@@ -16,7 +16,7 @@ export default defineConfig({
         name: 'Finanzas Bruce',
         short_name: 'Finanzas',
         description: 'Gestión de finanzas personales offline de manera simple y segura',
-        theme_color: '#863bff',
+        theme_color: '#000000',
         background_color: '#ffffff',
         display: 'standalone',
         orientation: 'portrait',
