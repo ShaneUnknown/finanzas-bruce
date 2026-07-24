@@ -3,6 +3,7 @@ import { FiSun, FiMoon, FiUploadCloud, FiDownloadCloud, FiX } from 'react-icons/
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Pagination } from 'swiper/modules'
 import { DateSelector } from './components/DateSelector'
+import { ProductSalesCard } from './components/ProductSalesCard'
 import { CalendarGrid } from './components/CalendarGrid'
 import { ShiftManager } from './components/ShiftManager'
 import { db, type DailyRecord } from './db/financeDB'
@@ -92,6 +93,10 @@ function App() {
   // Calculate totals
   const monthTotal = monthlyRecords.reduce((acc, curr) => {
     return acc + (curr.income + curr.productSales - curr.expense)
+  }, 0)
+
+  const monthProductSalesTotal = monthlyRecords.reduce((acc, curr) => {
+    return acc + (curr.productSales || 0)
   }, 0)
 
   // Compute selectedDate formatted as YYYY-MM-DD
@@ -250,6 +255,14 @@ function App() {
               setSelectedDay(1)
             }
           }}
+        />
+      </section>
+
+      {/* Total Product Sales of the Month Card */}
+      <section className="product-sales-section">
+        <ProductSalesCard 
+          totalSales={monthProductSalesTotal} 
+          loading={loadingMonthly} 
         />
       </section>
 

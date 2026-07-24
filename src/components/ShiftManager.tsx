@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { 
   FiSunrise,
   FiSunset, 
@@ -24,6 +25,10 @@ interface ShiftManagerProps {
 
 type ShiftType = 'morning' | 'afternoon'
 
+type PendingAction = 
+  | { type: 'shift'; target: ShiftType }
+  | { type: 'nav'; target: 'prev' | 'next' }
+
 export const ShiftManager: React.FC<ShiftManagerProps> = ({ 
   selectedDate, 
   onRecordSaved,
@@ -43,6 +48,10 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
   const [record, setRecord] = useState<DailyRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
+
+  // Unsaved changes modal states
+  const [showConfirmModal, setShowConfirmModal] = useState(false)
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
 
   // Form inputs state
   const [income, setIncome] = useState('')
@@ -129,6 +138,65 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
     }
   }
 
+  const hasUnsavedChanges = () => {
+    if (!isEditing) return false
+
+    const cleanIncomeNum = parseFloat(income) || 0
+    const cleanExpenseNum = parseFloat(expense) || 0
+    const cleanProductSalesNum = parseFloat(productSales) || 0
+    const cleanNotes = notes.trim()
+
+    const savedIncomeNum = record ? record.income : 0
+    const savedExpenseNum = record ? record.expense : 0
+    const savedProductSalesNum = record ? record.productSales : 0
+    const savedNotes = record ? record.notes : ''
+
+    return (
+      cleanIncomeNum !== savedIncomeNum ||
+      cleanExpenseNum !== savedExpenseNum ||
+      cleanProductSalesNum !== savedProductSalesNum ||
+      cleanNotes !== savedNotes
+    )
+  }
+
+  const handleTabClick = (shift: ShiftType) => {
+    if (shift === activeShift) return
+
+    if (hasUnsavedChanges()) {
+      setPendingAction({ type: 'shift', target: shift })
+      setShowConfirmModal(true)
+    } else {
+      setActiveShift(shift)
+    }
+  }
+
+  const handleNavigateDate = (direction: 'prev' | 'next') => {
+    if (hasUnsavedChanges()) {
+      setPendingAction({ type: 'nav', target: direction })
+      setShowConfirmModal(true)
+    } else {
+      onNavigateDate?.(direction)
+    }
+  }
+
+  const handleConfirmModal = () => {
+    setShowConfirmModal(false)
+    if (pendingAction) {
+      if (pendingAction.type === 'shift') {
+        setActiveShift(pendingAction.target)
+      } else if (pendingAction.type === 'nav') {
+        onNavigateDate?.(pendingAction.target)
+      }
+      setPendingAction(null)
+    }
+  }
+
+  const handleCancelModal = () => {
+    setShowConfirmModal(false)
+    setPendingAction(null)
+  }
+
+
   if (!selectedDate) {
     return (
       <div className="shift-manager-empty">
@@ -144,7 +212,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
         <button
           type="button"
           className={`shift-tab-btn ${activeShift === 'morning' ? 'active' : ''}`}
-          onClick={() => setActiveShift('morning')}
+          onClick={() => handleTabClick('morning')}
         >
           <FiSunrise className="tab-icon" />
           <span>Mañana</span>
@@ -152,7 +220,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
         <button
           type="button"
           className={`shift-tab-btn ${activeShift === 'afternoon' ? 'active' : ''}`}
-          onClick={() => setActiveShift('afternoon')}
+          onClick={() => handleTabClick('afternoon')}
         >
           <FiSunset className="tab-icon" />
           <span>Tarde</span>
@@ -170,7 +238,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                   <button
                     type="button"
                     className="day-nav-btn"
-                    onClick={() => onNavigateDate?.('prev')}
+                    onClick={() => handleNavigateDate('prev')}
                     aria-label="Día anterior"
                   >
                     <FiChevronLeft />
@@ -198,7 +266,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                   <button
                     type="button"
                     className="day-nav-btn"
-                    onClick={() => onNavigateDate?.('next')}
+                    onClick={() => handleNavigateDate('next')}
                     aria-label="Siguiente día"
                   >
                     <FiChevronRight />
@@ -274,7 +342,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                   <button
                     type="button"
                     className="day-nav-btn"
-                    onClick={() => onNavigateDate?.('prev')}
+                    onClick={() => handleNavigateDate('prev')}
                     aria-label="Día anterior"
                   >
                     <FiChevronLeft />
@@ -302,7 +370,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                   <button
                     type="button"
                     className="day-nav-btn"
-                    onClick={() => onNavigateDate?.('next')}
+                    onClick={() => handleNavigateDate('next')}
                     aria-label="Siguiente día"
                   >
                     <FiChevronRight />
@@ -398,6 +466,39 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
           })()
         )}
       </div>
+
+      {showConfirmModal && createPortal(
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <div className="modal-header">
+              <h3>¿Descartar cambios?</h3>
+              <button className="modal-close-btn" onClick={handleCancelModal} aria-label="Cerrar">
+                <FiX />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Tienes cambios sin guardar en este turno. Si cambias ahora, se perderán los datos ingresados.</p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCancelModal}
+              >
+                Seguir editando
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleConfirmModal}
+              >
+                Descartar
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   )
 }
