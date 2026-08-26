@@ -576,6 +576,10 @@ textarea:focus {
   -webkit-tap-highlight-color: transparent;
 }
 
+.finance-tab.income {
+  color: #059669;
+}
+
 .finance-tab.active {
   background: var(--bg-card);
 }
@@ -751,6 +755,21 @@ textarea:focus {
   transform: translateY(-1px);
 }
 
+.monthly-option-card.selected {
+  border-color: #ec4899;
+  background: color-mix(in srgb, #ec4899 12%, var(--bg-card));
+  color: #db2777;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #ec4899 14%, transparent);
+}
+
+.monthly-option-card.selected .monthly-option-icon {
+  color: #ec4899;
+}
+
+.monthly-picker-footer .btn {
+  width: 100%;
+}
+
 .monthly-option-card:active {
   transform: scale(0.98);
 }
@@ -780,8 +799,8 @@ textarea:focus {
 }
 
 .expense-section-title.income-form-title {
-  color: var(--accent);
-  text-decoration-color: var(--accent);
+  color: #059669;
+  text-decoration-color: #059669;
 }
 
 .expense-section-title.daily-title {

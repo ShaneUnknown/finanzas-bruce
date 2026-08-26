@@ -1,14 +1,14 @@
 import { useState, useEffect, useRef } from 'react'
 import { FiSun, FiMoon, FiUploadCloud, FiDownloadCloud, FiX } from 'react-icons/fi'
 import { Swiper, SwiperSlide } from 'swiper/react'
-import { Pagination } from 'swiper/modules'
+
 import { DateSelector } from './components/DateSelector'
 import { ProductSalesCard } from './components/ProductSalesCard'
 import { CalendarGrid } from './components/CalendarGrid'
 import { ShiftManager, type FinanceTab } from './components/ShiftManager'
-import { db, getBalance, getProductSales, normalizeRecord, type DailyRecord } from './db/financeDB'
+import { db, getBalance, getExpenseTotal, getProductSales, normalizeRecord, sumEntries, type DailyRecord } from './db/financeDB'
+import { useBackDismiss } from './hooks/useBackDismiss'
 import 'swiper/css'
-import 'swiper/css/pagination'
 import './App.css'
 
 function App() {
@@ -78,6 +78,9 @@ function App() {
   const [showExportModal, setShowExportModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
 
+  useBackDismiss(showExportModal, () => setShowExportModal(false))
+  useBackDismiss(showImportModal, () => setShowImportModal(false))
+
   // Visibility constraints
   const isExportVisible = !lastExportTime || (Date.now() - parseInt(lastExportTime, 10)) > 24 * 60 * 60 * 1000
   const isImportVisible = !hasImported
@@ -121,6 +124,15 @@ function App() {
 
   const monthProductSalesTotal = monthlyRecords.reduce((acc, curr) => {
     return acc + getProductSales(curr)
+  }, 0)
+
+  const monthDailyExpensesTotal = monthlyRecords.reduce((total, record) => {
+    const dailyItems = record.expenseItems?.filter(item => item.group === 'daily') ?? []
+    return total + sumEntries(dailyItems)
+  }, 0)
+
+  const monthExpensesTotal = monthlyRecords.reduce((total, record) => {
+    return total + getExpenseTotal(record)
   }, 0)
 
   // Compute selectedDate formatted as YYYY-MM-DD
@@ -295,6 +307,8 @@ function App() {
       <section className="product-sales-section">
         <ProductSalesCard 
           totalSales={monthProductSalesTotal} 
+          totalDailyExpenses={monthDailyExpensesTotal}
+          totalMonthlyExpenses={monthExpensesTotal}
           loading={loadingMonthly} 
         />
       </section>
@@ -303,8 +317,6 @@ function App() {
       <main className="dashboard-content">
         {isMobile ? (
           <Swiper
-            modules={[Pagination]}
-            pagination={{ clickable: true }}
             spaceBetween={16}
             slidesPerView={1}
             className="mobile-swiper"

@@ -4,6 +4,7 @@ import {
   FiChevronLeft,
   FiChevronRight,
   FiCalendar,
+  FiCheck,
   FiEdit,
   FiFileText,
   FiLoader,
@@ -30,6 +31,7 @@ import {
   type EntryGroup,
   type RecordEntry,
 } from '../db/financeDB'
+import { useBackDismiss } from '../hooks/useBackDismiss'
 import './ShiftManager.css'
 
 interface ShiftManagerProps {
@@ -99,10 +101,14 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
   const [expenseValues, setExpenseValues] = useState<AmountMap>({})
   const [addedMonthlyIds, setAddedMonthlyIds] = useState<string[]>([])
   const [showMonthlyPicker, setShowMonthlyPicker] = useState(false)
+  const [selectedMonthlyIds, setSelectedMonthlyIds] = useState<string[]>([])
   const [notes, setNotes] = useState('')
   const [savedSnapshot, setSavedSnapshot] = useState('')
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+
+  useBackDismiss(showMonthlyPicker, () => setShowMonthlyPicker(false))
+  useBackDismiss(showConfirmModal, () => setShowConfirmModal(false))
 
   const formSnapshot = (income: AmountMap, expense: AmountMap, text: string) => {
     const normalizeAmounts = (values: AmountMap) =>
@@ -198,9 +204,18 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
     category => !addedMonthlyIds.includes(category.id),
   )
 
-  const addMonthlyExpense = (categoryId: string) => {
-    if (addedMonthlyIds.includes(categoryId)) return
-    setAddedMonthlyIds(previous => [...previous, categoryId])
+  const toggleMonthlyExpense = (categoryId: string) => {
+    setSelectedMonthlyIds(previous =>
+      previous.includes(categoryId)
+        ? previous.filter(id => id !== categoryId)
+        : [...previous, categoryId],
+    )
+  }
+
+  const addSelectedMonthlyExpenses = () => {
+    if (selectedMonthlyIds.length === 0) return
+    setAddedMonthlyIds(previous => [...new Set([...previous, ...selectedMonthlyIds])])
+    setSelectedMonthlyIds([])
     setShowMonthlyPicker(false)
   }
 
@@ -404,7 +419,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                   <button
                     type="button"
                     className="open-monthly-picker-btn"
-                    onClick={() => setShowMonthlyPicker(true)}
+                    onClick={() => { setSelectedMonthlyIds([]); setShowMonthlyPicker(true) }}
                     disabled={availableMonthlyCategories.length === 0}
                   >
                     <FiPlus />
@@ -483,20 +498,26 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
               </button>
             </div>
             <div className="modal-body monthly-picker-body">
-              <p className="monthly-picker-help">Toca un gasto para agregarlo al formulario.</p>
+              <p className="monthly-picker-help">Selecciona uno o varios gastos para agregarlos al formulario.</p>
               <div className="monthly-options-grid">
                 {availableMonthlyCategories.map(category => (
                   <button
                     type="button"
-                    className="monthly-option-card"
+                    className={`monthly-option-card ${selectedMonthlyIds.includes(category.id) ? 'selected' : ''}`}
                     key={category.id}
-                    onClick={() => addMonthlyExpense(category.id)}
+                    onClick={() => toggleMonthlyExpense(category.id)}
+                    aria-pressed={selectedMonthlyIds.includes(category.id)}
                   >
-                    <FiPlus className="monthly-option-icon" />
+                    {selectedMonthlyIds.includes(category.id) ? <FiCheck className="monthly-option-icon" /> : <FiPlus className="monthly-option-icon" />}
                     <span>{category.label}</span>
                   </button>
                 ))}
               </div>
+            </div>
+            <div className="modal-footer monthly-picker-footer">
+              <button type="button" className="btn btn-primary" onClick={addSelectedMonthlyExpenses} disabled={selectedMonthlyIds.length === 0}>
+                Seleccionar{selectedMonthlyIds.length > 0 ? ` (${selectedMonthlyIds.length})` : ""}
+              </button>
             </div>
           </div>
         </div>,
