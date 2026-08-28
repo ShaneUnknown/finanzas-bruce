@@ -13,8 +13,10 @@
 .monthly-expense-row span { color:var(--text); font-size:.75rem; }
 .monthly-expense-row b { color:#ef4444; white-space:nowrap; }
 .monthly-expense-empty { padding:50px 15px; text-align:center; color:var(--text); border:1px dashed var(--border); border-radius:12px; }
-.monthly-expense-overlay { height:var(--monthly-dialog-viewport-height, 100dvh); padding:8px 0; box-sizing:border-box; overflow:hidden; }
-.monthly-expense-dialog { width:95%; max-width:720px; height:calc(var(--monthly-dialog-viewport-height, 100dvh) - 16px); max-height:calc(var(--monthly-dialog-viewport-height, 100dvh) - 16px); min-height:0; overflow:hidden; }
+.monthly-expense-overlay { padding:8px 0; box-sizing:border-box; overflow:hidden; }
+.monthly-expense-dialog { width:95%; max-width:720px; max-height:92dvh; min-height:0; overflow:hidden; }
+.monthly-expense-overlay.keyboard-open { top:var(--monthly-dialog-viewport-top, 0px); height:var(--monthly-dialog-viewport-height); }
+.monthly-expense-dialog.keyboard-open { height:calc(var(--monthly-dialog-viewport-height) - 16px); max-height:calc(var(--monthly-dialog-viewport-height) - 16px); }
 .monthly-expense-dialog .modal-header { flex:0 0 auto; }
 .monthly-expense-form-scroll { flex:1 1 auto; padding:20px; overflow-y:auto; min-height:0; overscroll-behavior:contain; -webkit-overflow-scrolling:touch; }
 .monthly-expense-fields { display:grid; grid-template-columns:1fr; gap:14px; }

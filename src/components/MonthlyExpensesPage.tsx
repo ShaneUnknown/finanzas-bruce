@@ -33,6 +33,7 @@ export function MonthlyExpensesPage({ month, onSaved }: Props) {
   const [showDialog, setShowDialog] = useState(false)
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const loadRecords = useCallback(async () => {
     const found = await db.monthlyExpenses.where('month').equals(month).toArray()
     setRecords(found.sort((a, b) => b.createdAt - a.createdAt))
@@ -41,17 +42,23 @@ export function MonthlyExpensesPage({ month, onSaved }: Props) {
   useEffect(() => {
     if (!showDialog) return
     const viewport = window.visualViewport
-    const updateViewportHeight = () => {
+    const initialHeight = viewport?.height ?? window.innerHeight
+    const updateViewport = () => {
       const height = viewport?.height ?? window.innerHeight
+      const isOpen = initialHeight - height > 100
+      setKeyboardOpen(isOpen)
       document.documentElement.style.setProperty('--monthly-dialog-viewport-height', height + 'px')
+      document.documentElement.style.setProperty('--monthly-dialog-viewport-top', (viewport?.offsetTop ?? 0) + 'px')
     }
-    updateViewportHeight()
-    viewport?.addEventListener('resize', updateViewportHeight)
-    window.addEventListener('resize', updateViewportHeight)
+    updateViewport()
+    viewport?.addEventListener('resize', updateViewport)
+    viewport?.addEventListener('scroll', updateViewport)
     return () => {
-      viewport?.removeEventListener('resize', updateViewportHeight)
-      window.removeEventListener('resize', updateViewportHeight)
+      viewport?.removeEventListener('resize', updateViewport)
+      viewport?.removeEventListener('scroll', updateViewport)
       document.documentElement.style.removeProperty('--monthly-dialog-viewport-height')
+      document.documentElement.style.removeProperty('--monthly-dialog-viewport-top')
+      setKeyboardOpen(false)
     }
   }, [showDialog])
   const visibleRecords = records.filter(record => record.type === activeTab)
@@ -83,8 +90,8 @@ export function MonthlyExpensesPage({ month, onSaved }: Props) {
           <div><strong>{record.label}</strong><span>{new Date(record.createdAt).toLocaleDateString('es-PE')}</span></div><b>{money(record.amount)}</b>
         </article>) : <div className="monthly-expense-empty">Aún no hay gastos en esta categoría.</div>}
       </div>
-      {showDialog && createPortal(<div className="modal-overlay monthly-expense-overlay" onClick={() => setShowDialog(false)}>
-        <form className="modal-card monthly-expense-dialog" onSubmit={saveExpenses} onClick={event => event.stopPropagation()}>
+      {showDialog && createPortal(<div className={'modal-overlay monthly-expense-overlay' + (keyboardOpen ? ' keyboard-open' : '')} onClick={() => setShowDialog(false)}>
+        <form className={'modal-card monthly-expense-dialog' + (keyboardOpen ? ' keyboard-open' : '')} onSubmit={saveExpenses} onClick={event => event.stopPropagation()}>
           <div className="modal-header"><h3>Nuevo gasto · {TABS.find(tab => tab.id === activeTab)?.label}</h3>
             <button type="button" className="modal-close-btn" onClick={() => setShowDialog(false)} aria-label="Cerrar"><FiX /></button></div>
           <div className="monthly-expense-form-scroll"><div className={activeTab === 'fixed' ? 'monthly-expense-fields two-columns' : 'monthly-expense-fields'}>
