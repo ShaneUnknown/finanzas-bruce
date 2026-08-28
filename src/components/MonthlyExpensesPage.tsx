@@ -28,7 +28,9 @@ const FIELDS: Record<MonthlyExpenseType, ExpenseField[]> = {
 const money = (amount: number) => 'S/. ' + amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export function MonthlyExpensesPage({ month }: Props) {
-  const [activeTab, setActiveTab] = useState<MonthlyExpenseType>('fixed')
+  const savedTab = sessionStorage.getItem('monthly-expense-tab')
+  const initialTab: MonthlyExpenseType = savedTab === 'variable' || savedTab === 'supplier' ? savedTab : 'fixed'
+  const [activeTab, setActiveTab] = useState<MonthlyExpenseType>(initialTab)
   const [records, setRecords] = useState<MonthlyExpense[]>([])
   const navigate = useNavigate()
   const loadRecords = useCallback(async () => {
@@ -37,14 +39,22 @@ export function MonthlyExpensesPage({ month }: Props) {
   }, [month])
   useEffect(() => { void loadRecords() }, [loadRecords])
   const visibleRecords = records.filter(record => record.type === activeTab)
-  const openForm = () => navigate('/expenses/new/' + activeTab + '/' + month)
+  const selectTab = (tab: MonthlyExpenseType) => {
+    sessionStorage.setItem('monthly-expense-tab', tab)
+    setActiveTab(tab)
+  }
+  const openForm = () => {
+    sessionStorage.setItem('finance-swiper-slide', '0')
+    sessionStorage.setItem('monthly-expense-tab', activeTab)
+    navigate('/expenses/new/' + activeTab + '/' + month)
+  }
   return (
     <section className="monthly-expenses-page">
       <div className="monthly-expenses-header"><div><span className="eyebrow">Gastos del mes</span><h2>Control mensual</h2></div>
         <button className="new-expense-btn" type="button" onClick={openForm}><FiPlus /> Nuevo gasto</button></div>
       <div className="expense-tabs" role="tablist" aria-label="Tipos de gastos">
         {TABS.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id}
-          className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}
+          className={activeTab === tab.id ? 'active' : ''} onClick={() => selectTab(tab.id)}>{tab.label}</button>)}
       </div>
       <div className="monthly-expense-list">
         {visibleRecords.length ? visibleRecords.map(record => <article className="monthly-expense-row" key={record.id}>

@@ -20,6 +20,9 @@ function Dashboard() {
     ? location.state.month
     : null
   const initialDate = returnedMonth ? new Date(Number(returnedMonth.slice(0, 4)), Number(returnedMonth.slice(5, 7)) - 1, 1) : new Date()
+  const savedSlideValue = sessionStorage.getItem('finance-swiper-slide')
+  const savedSlide = savedSlideValue === null ? Number.NaN : Number(savedSlideValue)
+  const initialSwiperSlide = Number.isInteger(savedSlide) && savedSlide >= 0 && savedSlide <= 2 ? savedSlide : 1
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -297,7 +300,8 @@ function Dashboard() {
             pagination={{ clickable: true }}
             spaceBetween={16}
             slidesPerView={1}
-            initialSlide={1}
+            initialSlide={initialSwiperSlide}
+            onSlideChange={swiper => sessionStorage.setItem('finance-swiper-slide', String(swiper.activeIndex))}
             className="mobile-swiper"
           >
             <SwiperSlide>
