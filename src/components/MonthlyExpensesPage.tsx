@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { FiArrowLeft, FiPlus, FiSave } from 'react-icons/fi'
+import { useMatch, useNavigate } from 'react-router-dom'
 import { db, type MonthlyExpense, type MonthlyExpenseType } from '../db/financeDB'
 import './MonthlyExpensesPage.css'
 
@@ -30,36 +31,30 @@ const money = (amount: number) => 'S/. ' + amount.toLocaleString('es-PE', { mini
 export function MonthlyExpensesPage({ month, onSaved }: Props) {
   const [activeTab, setActiveTab] = useState<MonthlyExpenseType>('fixed')
   const [records, setRecords] = useState<MonthlyExpense[]>([])
-  const [showForm, setShowForm] = useState(() => window.location.hash === '#monthly-expense-form')
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const navigate = useNavigate()
+  const formMatch = useMatch('/expenses/new/:expenseType')
+  const requestedType = formMatch?.params.expenseType
+  const formType: MonthlyExpenseType = requestedType === 'variable' || requestedType === 'supplier' ? requestedType : 'fixed'
   const loadRecords = useCallback(async () => {
     const found = await db.monthlyExpenses.where('month').equals(month).toArray()
     setRecords(found.sort((a, b) => b.createdAt - a.createdAt))
   }, [month])
   useEffect(() => { void loadRecords() }, [loadRecords])
-  useEffect(() => {
-    const handleNavigation = () => setShowForm(window.location.hash === '#monthly-expense-form')
-    window.addEventListener('popstate', handleNavigation)
-    return () => window.removeEventListener('popstate', handleNavigation)
-  }, [])
   const visibleRecords = records.filter(record => record.type === activeTab)
   const openForm = () => {
     setValues({})
-    window.history.pushState({ monthlyExpenseForm: true }, '', '#monthly-expense-form')
-    setShowForm(true)
+    navigate('/expenses/new/' + activeTab)
   }
-  const closeForm = () => {
-    if (window.location.hash === '#monthly-expense-form') window.history.back()
-    else setShowForm(false)
-  }
+  const closeForm = () => navigate('/')
   const saveExpenses = async (event: React.FormEvent) => {
     event.preventDefault()
     const now = Date.now()
-    const newRecords = FIELDS[activeTab].flatMap((field, index) => {
+    const newRecords = FIELDS[formType].flatMap((field, index) => {
       const amount = Number(values[field.id])
       return Number.isFinite(amount) && amount > 0
-        ? [{ month, type: activeTab, fieldId: field.id, label: field.label, amount, createdAt: now + index }]
+        ? [{ month, type: formType, fieldId: field.id, label: field.label, amount, createdAt: now + index }]
         : []
     })
     if (!newRecords.length) return
@@ -80,17 +75,17 @@ export function MonthlyExpensesPage({ month, onSaved }: Props) {
           <div><strong>{record.label}</strong><span>{new Date(record.createdAt).toLocaleDateString('es-PE')}</span></div><b>{money(record.amount)}</b>
         </article>) : <div className="monthly-expense-empty">Aún no hay gastos en esta categoría.</div>}
       </div>
-      {showForm && createPortal(
+      {formMatch && createPortal(
         <main className="monthly-expense-form-screen">
           <form className="monthly-expense-screen-content" onSubmit={saveExpenses}>
             <header className="monthly-expense-screen-header">
               <button type="button" className="screen-back-btn" onClick={closeForm} aria-label="Volver"><FiArrowLeft /></button>
-              <div><span>Nuevo gasto</span><h1>{TABS.find(tab => tab.id === activeTab)?.label}</h1></div>
+              <div><span>Nuevo gasto</span><h1>{TABS.find(tab => tab.id === formType)?.label}</h1></div>
             </header>
             <div className="monthly-expense-screen-body">
               <p>Ingresa uno o varios importes para el mes seleccionado.</p>
-              <div className={activeTab === 'fixed' ? 'monthly-expense-fields two-columns' : 'monthly-expense-fields'}>
-                {FIELDS[activeTab].map(field => <label className="monthly-expense-field" key={field.id}><span>{field.label}</span><div><span>S/.</span>
+              <div className={formType === 'fixed' ? 'monthly-expense-fields two-columns' : 'monthly-expense-fields'}>
+                {FIELDS[formType].map(field => <label className="monthly-expense-field" key={field.id}><span>{field.label}</span><div><span>S/.</span>
                   <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00" value={values[field.id] ?? ''}
                     onChange={event => setValues(previous => ({ ...previous, [field.id]: event.target.value }))} /></div></label>)}
               </div>
