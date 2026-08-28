@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { FiPlus, FiSave, FiX } from 'react-icons/fi'
+import { FiArrowLeft, FiPlus, FiSave } from 'react-icons/fi'
 import { db, type MonthlyExpense, type MonthlyExpenseType } from '../db/financeDB'
 import './MonthlyExpensesPage.css'
 
@@ -30,39 +30,29 @@ const money = (amount: number) => 'S/. ' + amount.toLocaleString('es-PE', { mini
 export function MonthlyExpensesPage({ month, onSaved }: Props) {
   const [activeTab, setActiveTab] = useState<MonthlyExpenseType>('fixed')
   const [records, setRecords] = useState<MonthlyExpense[]>([])
-  const [showDialog, setShowDialog] = useState(false)
+  const [showForm, setShowForm] = useState(() => window.location.hash === '#monthly-expense-form')
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
-  const [keyboardOpen, setKeyboardOpen] = useState(false)
   const loadRecords = useCallback(async () => {
     const found = await db.monthlyExpenses.where('month').equals(month).toArray()
     setRecords(found.sort((a, b) => b.createdAt - a.createdAt))
   }, [month])
   useEffect(() => { void loadRecords() }, [loadRecords])
   useEffect(() => {
-    if (!showDialog) return
-    const viewport = window.visualViewport
-    const initialHeight = viewport?.height ?? window.innerHeight
-    const updateViewport = () => {
-      const height = viewport?.height ?? window.innerHeight
-      const isOpen = initialHeight - height > 100
-      setKeyboardOpen(isOpen)
-      document.documentElement.style.setProperty('--monthly-dialog-viewport-height', height + 'px')
-      document.documentElement.style.setProperty('--monthly-dialog-viewport-top', (viewport?.offsetTop ?? 0) + 'px')
-    }
-    updateViewport()
-    viewport?.addEventListener('resize', updateViewport)
-    viewport?.addEventListener('scroll', updateViewport)
-    return () => {
-      viewport?.removeEventListener('resize', updateViewport)
-      viewport?.removeEventListener('scroll', updateViewport)
-      document.documentElement.style.removeProperty('--monthly-dialog-viewport-height')
-      document.documentElement.style.removeProperty('--monthly-dialog-viewport-top')
-      setKeyboardOpen(false)
-    }
-  }, [showDialog])
+    const handleNavigation = () => setShowForm(window.location.hash === '#monthly-expense-form')
+    window.addEventListener('popstate', handleNavigation)
+    return () => window.removeEventListener('popstate', handleNavigation)
+  }, [])
   const visibleRecords = records.filter(record => record.type === activeTab)
-  const openDialog = () => { setValues({}); setShowDialog(true) }
+  const openForm = () => {
+    setValues({})
+    window.history.pushState({ monthlyExpenseForm: true }, '', '#monthly-expense-form')
+    setShowForm(true)
+  }
+  const closeForm = () => {
+    if (window.location.hash === '#monthly-expense-form') window.history.back()
+    else setShowForm(false)
+  }
   const saveExpenses = async (event: React.FormEvent) => {
     event.preventDefault()
     const now = Date.now()
@@ -74,13 +64,13 @@ export function MonthlyExpensesPage({ month, onSaved }: Props) {
     })
     if (!newRecords.length) return
     setSaving(true)
-    try { await db.monthlyExpenses.bulkAdd(newRecords); await loadRecords(); setShowDialog(false); onSaved() }
+    try { await db.monthlyExpenses.bulkAdd(newRecords); await loadRecords(); closeForm(); onSaved() }
     finally { setSaving(false) }
   }
   return (
     <section className="monthly-expenses-page">
       <div className="monthly-expenses-header"><div><span className="eyebrow">Gastos del mes</span><h2>Control mensual</h2></div>
-        <button className="new-expense-btn" type="button" onClick={openDialog}><FiPlus /> Nuevo gasto</button></div>
+        <button className="new-expense-btn" type="button" onClick={openForm}><FiPlus /> Nuevo gasto</button></div>
       <div className="expense-tabs" role="tablist" aria-label="Tipos de gastos">
         {TABS.map(tab => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id}
           className={activeTab === tab.id ? 'active' : ''} onClick={() => setActiveTab(tab.id)}>{tab.label}</button>)}
@@ -90,17 +80,27 @@ export function MonthlyExpensesPage({ month, onSaved }: Props) {
           <div><strong>{record.label}</strong><span>{new Date(record.createdAt).toLocaleDateString('es-PE')}</span></div><b>{money(record.amount)}</b>
         </article>) : <div className="monthly-expense-empty">Aún no hay gastos en esta categoría.</div>}
       </div>
-      {showDialog && createPortal(<div className={'modal-overlay monthly-expense-overlay' + (keyboardOpen ? ' keyboard-open' : '')} onClick={() => setShowDialog(false)}>
-        <form className={'modal-card monthly-expense-dialog' + (keyboardOpen ? ' keyboard-open' : '')} onSubmit={saveExpenses} onClick={event => event.stopPropagation()}>
-          <div className="modal-header"><h3>Nuevo gasto · {TABS.find(tab => tab.id === activeTab)?.label}</h3>
-            <button type="button" className="modal-close-btn" onClick={() => setShowDialog(false)} aria-label="Cerrar"><FiX /></button></div>
-          <div className="monthly-expense-form-scroll"><div className={activeTab === 'fixed' ? 'monthly-expense-fields two-columns' : 'monthly-expense-fields'}>
-            {FIELDS[activeTab].map(field => <label className="monthly-expense-field" key={field.id}><span>{field.label}</span><div><span>S/.</span>
-              <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00" value={values[field.id] ?? ''}
-                onChange={event => setValues(previous => ({ ...previous, [field.id]: event.target.value }))} /></div></label>)}
-          </div></div>
-          <div className="modal-footer monthly-expense-footer"><button className="btn btn-primary btn-block" disabled={saving} type="submit"><FiSave /> {saving ? 'Guardando…' : 'Guardar gasto'}</button></div>
-        </form></div>, document.body)}
+      {showForm && createPortal(
+        <main className="monthly-expense-form-screen">
+          <form className="monthly-expense-screen-content" onSubmit={saveExpenses}>
+            <header className="monthly-expense-screen-header">
+              <button type="button" className="screen-back-btn" onClick={closeForm} aria-label="Volver"><FiArrowLeft /></button>
+              <div><span>Nuevo gasto</span><h1>{TABS.find(tab => tab.id === activeTab)?.label}</h1></div>
+            </header>
+            <div className="monthly-expense-screen-body">
+              <p>Ingresa uno o varios importes para el mes seleccionado.</p>
+              <div className={activeTab === 'fixed' ? 'monthly-expense-fields two-columns' : 'monthly-expense-fields'}>
+                {FIELDS[activeTab].map(field => <label className="monthly-expense-field" key={field.id}><span>{field.label}</span><div><span>S/.</span>
+                  <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00" value={values[field.id] ?? ''}
+                    onChange={event => setValues(previous => ({ ...previous, [field.id]: event.target.value }))} /></div></label>)}
+              </div>
+              <button className="btn btn-primary btn-block monthly-expense-screen-save" disabled={saving} type="submit">
+                <FiSave /> {saving ? 'Guardando…' : 'Guardar gasto'}
+              </button>
+            </div>
+          </form>
+        </main>, document.body
+      )}
     </section>
   )
 }
