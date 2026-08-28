@@ -65,3 +65,5 @@
     padding: 3px 8px;
   }
 }
+
+.monthly-total-card .monthly-expense-total { color:#ef4444; background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.3); }

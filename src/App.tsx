@@ -4,9 +4,11 @@ import { Swiper, SwiperSlide } from 'swiper/react'
 import { Pagination } from 'swiper/modules'
 import { DateSelector } from './components/DateSelector'
 import { ProductSalesCard } from './components/ProductSalesCard'
+import { MonthlyExpenseTotalCard } from './components/MonthlyExpenseTotalCard'
+import { MonthlyExpensesPage } from './components/MonthlyExpensesPage'
 import { CalendarGrid } from './components/CalendarGrid'
 import { ShiftManager } from './components/ShiftManager'
-import { db, type DailyRecord } from './db/financeDB'
+import { db, type DailyRecord, type MonthlyExpense } from './db/financeDB'
 import 'swiper/css'
 import 'swiper/css/pagination'
 import './App.css'
@@ -68,6 +70,7 @@ function App() {
   const [monthlyRecords, setMonthlyRecords] = useState<DailyRecord[]>([])
   const [updateTrigger, setUpdateTrigger] = useState(0)
   const [loadingMonthly, setLoadingMonthly] = useState(false)
+  const [monthlyExpenses, setMonthlyExpenses] = useState<MonthlyExpense[]>([])
 
   // Fetch monthly records when month/year changes or when saved
   useEffect(() => {
@@ -90,6 +93,16 @@ function App() {
     loadMonthlyRecords()
   }, [currentMonth, currentYear, updateTrigger])
 
+  const monthKey = currentYear + '-' + (currentMonth + 1).toString().padStart(2, '0')
+
+  useEffect(() => {
+    const loadMonthlyExpenses = async () => {
+      try { setMonthlyExpenses(await db.monthlyExpenses.where('month').equals(monthKey).toArray()) }
+      catch (error) { console.error('Error cargando gastos mensuales:', error) }
+    }
+    void loadMonthlyExpenses()
+  }, [monthKey, updateTrigger])
+
   // Calculate totals
   const monthTotal = monthlyRecords.reduce((acc, curr) => {
     return acc + (curr.income + curr.productSales - curr.expense)
@@ -98,6 +111,8 @@ function App() {
   const monthProductSalesTotal = monthlyRecords.reduce((acc, curr) => {
     return acc + (curr.productSales || 0)
   }, 0)
+
+  const monthlyExpenseTotal = monthlyExpenses.reduce((total, expense) => total + expense.amount, 0)
 
   // Compute selectedDate formatted as YYYY-MM-DD
   const selectedDateStr = selectedDay !== null
@@ -265,6 +280,9 @@ function App() {
           loading={loadingMonthly} 
         />
       </section>
+      <section className="product-sales-section monthly-total-section">
+        <MonthlyExpenseTotalCard total={monthlyExpenseTotal} loading={loadingMonthly} />
+      </section>
 
       <main className="dashboard-content">
         {isMobile ? (
@@ -273,8 +291,14 @@ function App() {
             pagination={{ clickable: true }}
             spaceBetween={16}
             slidesPerView={1}
+            initialSlide={1}
             className="mobile-swiper"
           >
+            <SwiperSlide>
+              <div className="slide-content-wrapper">
+                <MonthlyExpensesPage month={monthKey} onSaved={() => setUpdateTrigger(prev => prev + 1)} />
+              </div>
+            </SwiperSlide>
             <SwiperSlide>
               <div className="slide-content-wrapper">
                 <CalendarGrid 
@@ -301,6 +325,7 @@ function App() {
           </Swiper>
         ) : (
           <>
+            <MonthlyExpensesPage month={monthKey} onSaved={() => setUpdateTrigger(prev => prev + 1)} />
             <CalendarGrid 
               currentMonth={currentMonth}
               currentYear={currentYear}

@@ -1,0 +1,3 @@
+import { FiLoader } from 'react-icons/fi'
+import './ProductSalesCard.css'
+export function MonthlyExpenseTotalCard({ total, loading = false }: { total: number; loading?: boolean }) { return <div className="product-sales-card monthly-total-card"><div className="product-sales-title-group"><span className="title-primary">Gasto</span><span className="title-secondary">Mensual</span></div><span className="product-sales-total-text monthly-expense-total">{loading ? <FiLoader className="spin-icon" /> : 'S/. ' + total.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div> }

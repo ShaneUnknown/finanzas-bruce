@@ -1,0 +1,27 @@
+.monthly-expenses-page { width:100%; min-height:520px; padding:20px; box-sizing:border-box; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); }
+.monthly-expenses-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
+.monthly-expenses-header h2 { margin:2px 0 0; color:var(--text-h); font-size:1.35rem; }
+.eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.new-expense-btn { display:flex; align-items:center; gap:6px; border:0; border-radius:10px; padding:10px 12px; background:var(--accent); color:white; font-weight:700; cursor:pointer; }
+.expense-tabs { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:5px; background:var(--code-bg); border-radius:12px; }
+.expense-tabs button { border:0; background:transparent; color:var(--text); padding:10px 4px; border-radius:9px; font-weight:700; cursor:pointer; font-size:.82rem; }
+.expense-tabs button.active { background:var(--bg-card); color:var(--accent); box-shadow:var(--shadow); }
+.monthly-expense-list { display:flex; flex-direction:column; gap:10px; margin-top:16px; max-height:380px; overflow-y:auto; }
+.monthly-expense-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px 14px; border:1px solid var(--border); border-radius:12px; }
+.monthly-expense-row div { display:flex; flex-direction:column; gap:3px; min-width:0; }
+.monthly-expense-row strong { color:var(--text-h); font-size:.9rem; }
+.monthly-expense-row span { color:var(--text); font-size:.75rem; }
+.monthly-expense-row b { color:#ef4444; white-space:nowrap; }
+.monthly-expense-empty { padding:50px 15px; text-align:center; color:var(--text); border:1px dashed var(--border); border-radius:12px; }
+.monthly-expense-dialog { width:95%; max-width:720px; max-height:92vh; }
+.monthly-expense-form-scroll { padding:20px; overflow-y:auto; min-height:0; }
+.monthly-expense-fields { display:grid; grid-template-columns:1fr; gap:14px; }
+.monthly-expense-fields.two-columns { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.monthly-expense-field { min-width:0; }
+.monthly-expense-field > span { display:block; margin-bottom:6px; font-size:.82rem; }
+.monthly-expense-field > div { display:flex; align-items:center; border:1px solid var(--accent-border); border-radius:9px; background:var(--bg-card); overflow:hidden; }
+.monthly-expense-field > div > span { padding-left:11px; color:var(--text); font-size:.85rem; }
+.monthly-expense-field input { width:100%; min-width:0; border:0; box-shadow:none; padding:11px 8px; }
+.monthly-expense-footer { flex-shrink:0; }
+.monthly-expense-footer .btn { display:flex; align-items:center; justify-content:center; gap:8px; }
+@media(max-width:420px){ .monthly-expenses-page{padding:16px;min-height:500px}.monthly-expenses-header{align-items:flex-start}.new-expense-btn{font-size:.8rem;padding:9px}.monthly-expense-fields.two-columns{gap:10px}.monthly-expense-form-scroll{padding:14px}.monthly-expense-field > span{font-size:.75rem}.monthly-expense-field input{padding:10px 6px} }

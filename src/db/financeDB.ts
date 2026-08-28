@@ -35,6 +35,18 @@ interface DetailedDailyRecord extends DailyRecord {
   expenseItems?: RecordEntry[]
 }
 
+export type MonthlyExpenseType = 'fixed' | 'variable' | 'supplier'
+
+export interface MonthlyExpense {
+  id?: number
+  month: string // YYYY-MM
+  type: MonthlyExpenseType
+  fieldId: string
+  label: string
+  amount: number
+  createdAt: number
+}
+
 export interface RecordMigrationBackup {
   id: string
   migratedAt: number
@@ -79,6 +91,7 @@ export class FinanceDB extends Dexie {
   transactions!: Table<Transaction>
   dailyRecords!: Table<DailyRecord>
   recordMigrationBackups!: Table<RecordMigrationBackup>
+  monthlyExpenses!: Table<MonthlyExpense>
 
   constructor() {
     super('FinanceDB')
@@ -105,6 +118,12 @@ export class FinanceDB extends Dexie {
         await backups.bulkPut(records.map(record => ({ id: record.id, migratedAt, record })))
         await dailyRecords.bulkPut(records.map(compactRecord))
       }
+    })
+    this.version(5).stores({
+      transactions: '++id, description, amount, type, category, date',
+      dailyRecords: 'id, date, shift',
+      recordMigrationBackups: 'id, migratedAt',
+      monthlyExpenses: '++id, month, type, fieldId, createdAt'
     })
   }
 }
