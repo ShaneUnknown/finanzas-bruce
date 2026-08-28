@@ -1,41 +1,18 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect } from 'react'
 import { FiSun, FiMoon, FiUploadCloud, FiDownloadCloud, FiX } from 'react-icons/fi'
 import { Swiper, SwiperSlide } from 'swiper/react'
-
+import { Pagination } from 'swiper/modules'
 import { DateSelector } from './components/DateSelector'
 import { ProductSalesCard } from './components/ProductSalesCard'
 import { CalendarGrid } from './components/CalendarGrid'
-import { ShiftManager, type FinanceTab } from './components/ShiftManager'
-import { db, getBalance, getExpenseTotal, getProductSales, normalizeRecord, sumEntries, type DailyRecord } from './db/financeDB'
-import { useBackDismiss } from './hooks/useBackDismiss'
+import { ShiftManager } from './components/ShiftManager'
+import { db, type DailyRecord } from './db/financeDB'
 import 'swiper/css'
+import 'swiper/css/pagination'
 import './App.css'
 
 function App() {
   const [isMobile, setIsMobile] = useState(false)
-  const pointerStart = useRef<{ x: number; y: number } | null>(null)
-  const committedSlideIndex = useRef(0)
-
-  const handlePointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    pointerStart.current = { x: event.clientX, y: event.clientY }
-  }
-
-  const handlePointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
-    const start = pointerStart.current
-    pointerStart.current = null
-    if (!start) return
-
-    const moved = Math.hypot(event.clientX - start.x, event.clientY - start.y)
-    if (moved > 8) return
-
-    const target = event.target as HTMLElement
-    if (target.closest('input, textarea, select')) return
-
-    const activeElement = document.activeElement
-    if (activeElement instanceof HTMLInputElement || activeElement instanceof HTMLTextAreaElement || activeElement instanceof HTMLSelectElement) {
-      activeElement.blur()
-    }
-  }
 
   useEffect(() => {
     const handleResize = () => {
@@ -78,9 +55,6 @@ function App() {
   const [showExportModal, setShowExportModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
 
-  useBackDismiss(showExportModal, () => setShowExportModal(false))
-  useBackDismiss(showImportModal, () => setShowImportModal(false))
-
   // Visibility constraints
   const isExportVisible = !lastExportTime || (Date.now() - parseInt(lastExportTime, 10)) > 24 * 60 * 60 * 1000
   const isImportVisible = !hasImported
@@ -89,7 +63,6 @@ function App() {
   const [currentMonth, setCurrentMonth] = useState(new Date().getMonth())
   const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
   const [selectedDay, setSelectedDay] = useState<number | null>(() => new Date().getDate())
-  const [activeFinanceTab, setActiveFinanceTab] = useState<FinanceTab>('income')
 
   // Monthly Records State for display totals
   const [monthlyRecords, setMonthlyRecords] = useState<DailyRecord[]>([])
@@ -119,20 +92,11 @@ function App() {
 
   // Calculate totals
   const monthTotal = monthlyRecords.reduce((acc, curr) => {
-    return acc + getBalance(curr)
+    return acc + (curr.income + curr.productSales - curr.expense)
   }, 0)
 
   const monthProductSalesTotal = monthlyRecords.reduce((acc, curr) => {
-    return acc + getProductSales(curr)
-  }, 0)
-
-  const monthDailyExpensesTotal = monthlyRecords.reduce((total, record) => {
-    const dailyItems = record.expenseItems?.filter(item => item.group === 'daily') ?? []
-    return total + sumEntries(dailyItems)
-  }, 0)
-
-  const monthExpensesTotal = monthlyRecords.reduce((total, record) => {
-    return total + getExpenseTotal(record)
+    return acc + (curr.productSales || 0)
   }, 0)
 
   // Compute selectedDate formatted as YYYY-MM-DD
@@ -149,11 +113,11 @@ function App() {
   const afternoonRec = selectedDateRecords.find(rec => rec.shift === 'afternoon')
 
   const selectedDayMorningTotal = morningRec
-    ? getBalance(morningRec)
+    ? morningRec.income + morningRec.productSales - morningRec.expense
     : 0
 
   const selectedDayAfternoonTotal = afternoonRec
-    ? getBalance(afternoonRec)
+    ? afternoonRec.income + afternoonRec.productSales - afternoonRec.expense
     : 0
 
   const selectedDayTotal = selectedDayMorningTotal + selectedDayAfternoonTotal
@@ -165,9 +129,6 @@ function App() {
       currentDate.setDate(currentDate.getDate() - 1)
     } else {
       currentDate.setDate(currentDate.getDate() + 1)
-      const today = new Date()
-      today.setHours(0, 0, 0, 0)
-      if (currentDate > today) return
     }
     setCurrentYear(currentDate.getFullYear())
     setCurrentMonth(currentDate.getMonth())
@@ -177,7 +138,7 @@ function App() {
   const handleExportBackup = async () => {
     try {
       const records = await db.dailyRecords.toArray()
-      const dataStr = JSON.stringify({ format: 'finanzas-backup', version: 2, exportedAt: new Date().toISOString(), records }, null, 2)
+      const dataStr = JSON.stringify(records, null, 2)
       const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr)
 
       const exportFileDefaultName = `respaldo_finanzas_${new Date().toISOString().slice(0, 10)}.json`
@@ -206,27 +167,21 @@ function App() {
     reader.onload = async (e) => {
       try {
         const content = e.target?.result as string
-        const parsed: unknown = JSON.parse(content)
-        const rawRecords = Array.isArray(parsed)
-          ? parsed
-          : parsed && typeof parsed === 'object' && Array.isArray((parsed as { records?: unknown }).records)
-            ? (parsed as { records: unknown[] }).records
-            : null
+        const records = JSON.parse(content) as DailyRecord[]
 
-        if (!rawRecords) throw new Error('El archivo de copia de seguridad no es válido.')
+        if (!Array.isArray(records)) {
+          throw new Error('El archivo de copia de seguridad no es válido.')
+        }
 
-        const records = rawRecords.map(raw => {
-          if (!raw || typeof raw !== 'object') throw new Error('El archivo contiene registros inválidos.')
-          const rec = raw as Partial<DailyRecord>
-          if (!rec.id || !rec.date || (rec.shift !== 'morning' && rec.shift !== 'afternoon')) {
+        // Validate basic properties
+        for (const rec of records) {
+          if (!rec.id || !rec.date || !rec.shift || rec.income === undefined || rec.expense === undefined || rec.productSales === undefined) {
             throw new Error('El archivo contiene registros inválidos.')
           }
-          return normalizeRecord(rec as Partial<DailyRecord> & Pick<DailyRecord, 'id' | 'date' | 'shift'>)
-        })
+        }
 
-        await db.transaction('rw', db.dailyRecords, async () => {
-          await db.dailyRecords.bulkPut(records)
-        })
+        // Restore in Dexie
+        await db.dailyRecords.bulkPut(records)
 
         // Save status in localStorage and state
         localStorage.setItem('has_imported', 'true')
@@ -244,7 +199,7 @@ function App() {
     reader.readAsText(file)
   }
   return (
-    <div className="dashboard-container" onPointerDown={handlePointerDown} onPointerUp={handlePointerUp}>
+    <div className="dashboard-container">
       <header className="dashboard-header">
         <div className="header-top">
           <div className="title-area">
@@ -307,37 +262,18 @@ function App() {
       <section className="product-sales-section">
         <ProductSalesCard 
           totalSales={monthProductSalesTotal} 
-          totalDailyExpenses={monthDailyExpensesTotal}
-          totalMonthlyExpenses={monthExpensesTotal}
           loading={loadingMonthly} 
         />
       </section>
 
-
       <main className="dashboard-content">
         {isMobile ? (
           <Swiper
+            modules={[Pagination]}
+            pagination={{ clickable: true }}
             spaceBetween={16}
             slidesPerView={1}
             className="mobile-swiper"
-            touchStartPreventDefault={false}
-            touchStartForcePreventDefault={false}
-            noSwiping
-            noSwipingSelector="input, textarea, select, [contenteditable='true']"
-            focusableElements=".swiper-focus-guard"
-            onSlideChangeTransitionEnd={swiper => {
-              if (swiper.activeIndex === committedSlideIndex.current) return
-              committedSlideIndex.current = swiper.activeIndex
-
-              const activeElement = document.activeElement
-              if (
-                activeElement instanceof HTMLInputElement ||
-                activeElement instanceof HTMLTextAreaElement ||
-                activeElement instanceof HTMLSelectElement
-              ) {
-                activeElement.blur()
-              }
-            }}
           >
             <SwiperSlide>
               <div className="slide-content-wrapper">
@@ -356,8 +292,6 @@ function App() {
             <SwiperSlide>
               <div className="slide-content-wrapper">
                 <ShiftManager 
-                  activeFinanceTab={activeFinanceTab}
-                  onFinanceTabChange={setActiveFinanceTab}
                   selectedDate={selectedDateStr} 
                   onRecordSaved={() => setUpdateTrigger(prev => prev + 1)}
                   onNavigateDate={handleNavigateDate}
@@ -380,8 +314,6 @@ function App() {
 
             {/* Shift Manager for morning/afternoon entries */}
             <ShiftManager 
-              activeFinanceTab={activeFinanceTab}
-              onFinanceTabChange={setActiveFinanceTab}
               selectedDate={selectedDateStr} 
               onRecordSaved={() => setUpdateTrigger(prev => prev + 1)}
               onNavigateDate={handleNavigateDate}

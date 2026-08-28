@@ -1,148 +1,113 @@
 import Dexie, { type Table } from 'dexie'
 
 export interface Transaction {
-  id?: number
+  id?: number // Primary key, auto-incremented
   description: string
   amount: number
   type: 'income' | 'expense'
   category: string
-  date: string
+  date: string // Format: YYYY-MM-DD
 }
 
-export type EntryGroup = 'income' | 'daily' | 'longTerm' | 'legacy'
+export interface DailyRecord {
+  id: string // Format: `${date}_${shift}`
+  date: string // Format: YYYY-MM-DD
+  shift: 'morning' | 'afternoon'
+  income: number
+  expense: number
+  productSales: number
+  notes: string
+  createdAt: number
+  updatedAt: number
+}
 
-export interface RecordEntry {
+type EntryGroup = 'income' | 'daily' | 'longTerm' | 'legacy'
+
+interface RecordEntry {
   categoryId: string
   label: string
   amount: number
   group: EntryGroup
 }
 
-export interface DailyRecord {
-  id: string
-  date: string
-  shift: 'morning' | 'afternoon'
-  // Totales conservados para mantener compatibilidad con respaldos antiguos.
-  income: number
-  expense: number
-  productSales: number
+interface DetailedDailyRecord extends DailyRecord {
   incomeItems?: RecordEntry[]
   expenseItems?: RecordEntry[]
-  notes: string
-  createdAt: number
-  updatedAt: number
 }
 
-export const INCOME_CATEGORIES = [
-  { id: 'emollient_sales', label: 'Venta de Emolientes' },
-  { id: 'product_sales', label: 'Venta de Productos' },
-  { id: 'loan_payment', label: 'Pago de Préstamo' },
-] as const
-
-export const DAILY_EXPENSE_CATEGORIES = [
-  { id: 'food', label: 'Gastos de Comida' },
-  { id: 'kitchen_rosa', label: 'Gastos de Cocina (Rosa)' },
-  { id: 'kitchen_silvia', label: 'Gastos de Cocina (Silvia)' },
-] as const
-
-export const LONG_TERM_EXPENSE_CATEGORIES = [
-  { id: 'local_rent', label: 'Pago de Local' },
-  { id: 'electricity', label: 'Pago de Luz' },
-  { id: 'water', label: 'Pago de Agua' },
-  { id: 'staff', label: 'Pago de Personal' },
-  { id: 'room', label: 'Pago de Cuarto' },
-  { id: 'internet', label: 'Pago de Internet' },
-  { id: 'mercado_libre', label: 'Pedidos de Mercado Libre' },
-  { id: 'chiclayo', label: 'Pedido de Chiclayo' },
-  { id: 'honey', label: 'Miel de Abejas' },
-  { id: 'biocenter', label: 'Pago Biocenter' },
-  { id: 'eco_valle', label: 'Pago Eco Valle' },
-  { id: 'mero_macho', label: 'Pago Mero Macho' },
-  { id: 'nutricost', label: 'Pago Nutricost' },
-  { id: 'amagreen', label: 'Pago Amagreen' },
-] as const
+export interface RecordMigrationBackup {
+  id: string
+  migratedAt: number
+  record: DetailedDailyRecord
+}
 
 const safeAmount = (value: unknown) => {
   const amount = typeof value === 'number' ? value : Number(value)
   return Number.isFinite(amount) && amount >= 0 ? amount : 0
 }
 
-export const sumEntries = (items?: RecordEntry[]) =>
-  (items ?? []).reduce((total, item) => total + safeAmount(item.amount), 0)
+const sumEntries = (entries: RecordEntry[]) =>
+  entries.reduce((total, entry) => total + safeAmount(entry.amount), 0)
 
-export const getIncomeTotal = (record: Partial<DailyRecord>) =>
-  Array.isArray(record.incomeItems)
-    ? sumEntries(record.incomeItems)
-    : safeAmount(record.income) + safeAmount(record.productSales)
-
-export const getExpenseTotal = (record: Partial<DailyRecord>) =>
-  Array.isArray(record.expenseItems) ? sumEntries(record.expenseItems) : safeAmount(record.expense)
-
-export const getBalance = (record: Partial<DailyRecord>) =>
-  getIncomeTotal(record) - getExpenseTotal(record)
-
-export const getProductSales = (record: Partial<DailyRecord>) =>
-  Array.isArray(record.incomeItems)
-    ? safeAmount(record.incomeItems.find(item => item.categoryId === 'product_sales')?.amount)
+const compactRecord = (record: DetailedDailyRecord): DailyRecord => {
+  const hasDetailedIncome = Array.isArray(record.incomeItems)
+  const hasDetailedExpenses = Array.isArray(record.expenseItems)
+  const productSales = hasDetailedIncome
+    ? sumEntries(record.incomeItems!.filter(entry => entry.categoryId === 'product_sales'))
     : safeAmount(record.productSales)
-
-export const normalizeRecord = (
-  record: Partial<DailyRecord> & Pick<DailyRecord, 'id' | 'date' | 'shift'>,
-): DailyRecord => {
-  const oldIncome = safeAmount(record.income)
-  const oldExpense = safeAmount(record.expense)
-  const oldProductSales = safeAmount(record.productSales)
-  const incomeItems = Array.isArray(record.incomeItems)
-    ? record.incomeItems
-    : [
-        ...(oldIncome > 0
-          ? [{ categoryId: 'legacy_income', label: 'Ingreso anterior / sin clasificar', amount: oldIncome, group: 'legacy' as const }]
-          : []),
-        ...(oldProductSales > 0
-          ? [{ categoryId: 'product_sales', label: 'Venta de Productos', amount: oldProductSales, group: 'income' as const }]
-          : []),
-      ]
-  const expenseItems = Array.isArray(record.expenseItems)
-    ? record.expenseItems
-    : oldExpense > 0
-      ? [{ categoryId: 'legacy_expense', label: 'Egreso anterior / sin clasificar', amount: oldExpense, group: 'legacy' as const }]
-      : []
-  const now = Date.now()
+  const income = hasDetailedIncome
+    ? sumEntries(record.incomeItems!.filter(entry => entry.categoryId !== 'product_sales'))
+    : safeAmount(record.income)
+  const expense = hasDetailedExpenses
+    ? sumEntries(record.expenseItems!)
+    : safeAmount(record.expense)
 
   return {
     id: record.id,
     date: record.date,
     shift: record.shift,
-    income: sumEntries(incomeItems.filter(item => item.categoryId !== 'product_sales')),
-    expense: sumEntries(expenseItems),
-    productSales: safeAmount(incomeItems.find(item => item.categoryId === 'product_sales')?.amount),
-    incomeItems,
-    expenseItems,
+    income,
+    expense,
+    productSales,
     notes: typeof record.notes === 'string' ? record.notes : '',
-    createdAt: safeAmount(record.createdAt) || now,
-    updatedAt: safeAmount(record.updatedAt) || now,
+    createdAt: safeAmount(record.createdAt) || Date.now(),
+    updatedAt: safeAmount(record.updatedAt) || Date.now()
   }
 }
 
 export class FinanceDB extends Dexie {
   transactions!: Table<Transaction>
   dailyRecords!: Table<DailyRecord>
+  recordMigrationBackups!: Table<RecordMigrationBackup>
 
   constructor() {
     super('FinanceDB')
     this.version(2).stores({
       transactions: '++id, description, amount, type, category, date',
-      dailyRecords: 'id, date, shift',
+      dailyRecords: 'id, date, shift'
     })
+    // La versión 3 ya llegó a los navegadores y no se puede retroceder a la 2.
     this.version(3).stores({
       transactions: '++id, description, amount, type, category, date',
+      dailyRecords: 'id, date, shift'
+    })
+    this.version(4).stores({
+      transactions: '++id, description, amount, type, category, date',
       dailyRecords: 'id, date, shift',
+      recordMigrationBackups: 'id, migratedAt'
     }).upgrade(async transaction => {
-      await transaction.table<DailyRecord, string>('dailyRecords').toCollection().modify(record => {
-        Object.assign(record, normalizeRecord(record))
-      })
+      const dailyRecords = transaction.table<DetailedDailyRecord, string>('dailyRecords')
+      const backups = transaction.table<RecordMigrationBackup, string>('recordMigrationBackups')
+      const records = await dailyRecords.toArray()
+      const migratedAt = Date.now()
+
+      if (records.length > 0) {
+        await backups.bulkPut(records.map(record => ({ id: record.id, migratedAt, record })))
+        await dailyRecords.bulkPut(records.map(compactRecord))
+      }
     })
   }
 }
 
 export const db = new FinanceDB()
+

@@ -513,7 +513,7 @@ input:focus, select:focus {
 /* Swiper styling for mobile view */
 .mobile-swiper {
   width: 100%;
-  padding-bottom: 0 !important;
+  padding-bottom: 35px !important;
 }
 
 .slide-content-wrapper {
@@ -523,4 +523,14 @@ input:focus, select:focus {
   width: 100%;
   box-sizing: border-box;
   padding: 0 4px;
+}
+
+.swiper-pagination-bullet {
+  background: var(--text) !important;
+  opacity: 0.3;
+}
+
+.swiper-pagination-bullet-active {
+  background: var(--accent) !important;
+  opacity: 1 !important;
 }

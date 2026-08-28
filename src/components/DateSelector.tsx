@@ -30,11 +30,6 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
   monthTotal,
   onChange,
 }) => {
-  const today = new Date()
-  const isLastMonth =
-    currentYear > today.getFullYear() ||
-    (currentYear === today.getFullYear() && currentMonth >= today.getMonth())
-
   const handlePrev = () => {
     if (currentMonth === 0) {
       onChange(11, currentYear - 1)
@@ -44,7 +39,6 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
   }
 
   const handleNext = () => {
-    if (isLastMonth) return
     if (currentMonth === 11) {
       onChange(0, currentYear + 1)
     } else {
@@ -73,16 +67,14 @@ export const DateSelector: React.FC<DateSelectorProps> = ({
         </span>
       </div>
 
-      {!isLastMonth ? (
-        <button
-          type="button"
-          className="nav-btn next-btn"
-          onClick={handleNext}
-          aria-label="Siguiente mes"
-        >
-          <FiChevronRight className="nav-icon" />
-        </button>
-      ) : <span className="nav-btn-placeholder" aria-hidden="true" />}
+      <button
+        type="button"
+        className="nav-btn next-btn"
+        onClick={handleNext}
+        aria-label="Siguiente mes"
+      >
+        <FiChevronRight className="nav-icon" />
+      </button>
     </div>
   )
 }

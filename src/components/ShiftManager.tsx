@@ -1,129 +1,65 @@
-import React, { useEffect, useMemo, useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import {
+import { 
+  FiSunrise,
+  FiSunset, 
+  FiTrendingUp, 
+  FiTrendingDown, 
+  FiShoppingBag, 
+  FiFileText, 
+  FiEdit, 
+  FiSave,
+  FiX,
   FiChevronLeft,
   FiChevronRight,
-  FiCalendar,
-  FiCheck,
-  FiEdit,
-  FiFileText,
-  FiLoader,
-  FiPlus,
-  FiTrash2,
-  FiSave,
-  FiSunrise,
-  FiSunset,
-  FiTrendingDown,
-  FiTrendingUp,
-  FiX,
+  FiLoader
 } from 'react-icons/fi'
-import {
-  DAILY_EXPENSE_CATEGORIES,
-  db,
-  getBalance,
-  getExpenseTotal,
-  getIncomeTotal,
-  INCOME_CATEGORIES,
-  LONG_TERM_EXPENSE_CATEGORIES,
-  normalizeRecord,
-  sumEntries,
-  type DailyRecord,
-  type EntryGroup,
-  type RecordEntry,
-} from '../db/financeDB'
-import { useBackDismiss } from '../hooks/useBackDismiss'
+import { db, type DailyRecord } from '../db/financeDB'
 import './ShiftManager.css'
 
 interface ShiftManagerProps {
-  activeFinanceTab: FinanceTab
-  onFinanceTabChange: (tab: FinanceTab) => void
-  selectedDate: string | null
+  selectedDate: string | null // format: YYYY-MM-DD
   onRecordSaved: () => void
   onNavigateDate?: (direction: 'prev' | 'next') => void
 }
 
 type ShiftType = 'morning' | 'afternoon'
-export type FinanceTab = 'income' | 'expense'
-type PendingAction =
+
+type PendingAction = 
   | { type: 'shift'; target: ShiftType }
   | { type: 'nav'; target: 'prev' | 'next' }
 
-type AmountMap = Record<string, string>
-type Category = { id: string; label: string }
-
-const toAmountMap = (items: RecordEntry[] = []) =>
-  Object.fromEntries(items.map(item => [item.categoryId, item.amount ? String(item.amount) : '']))
-
-const parseAmount = (value: string | undefined) => {
-  const amount = Number(value)
-  return Number.isFinite(amount) && amount >= 0 ? amount : 0
-}
-
-const buildItems = (
-  categories: readonly Category[],
-  values: AmountMap,
-  group: EntryGroup,
-  previousItems: RecordEntry[],
-) => {
-  const configuredIds = new Set(categories.map(category => category.id))
-  const configured = categories
-    .map(category => ({
-      categoryId: category.id,
-      label: category.label,
-      amount: parseAmount(values[category.id]),
-      group,
-    }))
-    .filter(item => item.amount > 0)
-  const preserved = previousItems
-    .filter(item => !configuredIds.has(item.categoryId))
-    .map(item => ({ ...item, amount: parseAmount(values[item.categoryId]) }))
-    .filter(item => item.amount > 0)
-  return [...preserved, ...configured]
-}
-
-const currency = (amount: number) =>
-  `S/. ${amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
-
-export const ShiftManager: React.FC<ShiftManagerProps> = ({
-  activeFinanceTab,
-  onFinanceTabChange,
-  selectedDate,
+export const ShiftManager: React.FC<ShiftManagerProps> = ({ 
+  selectedDate, 
   onRecordSaved,
-  onNavigateDate,
+  onNavigateDate 
 }) => {
-  const [activeShift, setActiveShift] = useState<ShiftType>(() =>
-    new Date().getHours() < 12 ? 'morning' : 'afternoon',
-  )
+  const getFormattedDay = (dateStr: string | null) => {
+    if (!dateStr) return ''
+    const [year, month, day] = dateStr.split('-').map(Number)
+    const date = new Date(year, month - 1, day)
+    const formatted = date.toLocaleDateString('es-PE', {
+      weekday: 'long',
+      day: 'numeric'
+    })
+    return formatted.charAt(0).toUpperCase() + formatted.slice(1)
+  }
+  const [activeShift, setActiveShift] = useState<ShiftType>('morning')
   const [record, setRecord] = useState<DailyRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
-  const [incomeValues, setIncomeValues] = useState<AmountMap>({})
-  const [expenseValues, setExpenseValues] = useState<AmountMap>({})
-  const [addedMonthlyIds, setAddedMonthlyIds] = useState<string[]>([])
-  const [showMonthlyPicker, setShowMonthlyPicker] = useState(false)
-  const [selectedMonthlyIds, setSelectedMonthlyIds] = useState<string[]>([])
-  const [notes, setNotes] = useState('')
-  const [savedSnapshot, setSavedSnapshot] = useState('')
+
+  // Unsaved changes modal states
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
 
-  useBackDismiss(showMonthlyPicker, () => setShowMonthlyPicker(false))
-  useBackDismiss(showConfirmModal, () => setShowConfirmModal(false))
+  // Form inputs state
+  const [income, setIncome] = useState('')
+  const [expense, setExpense] = useState('')
+  const [productSales, setProductSales] = useState('')
+  const [notes, setNotes] = useState('')
 
-  const formSnapshot = (income: AmountMap, expense: AmountMap, text: string) => {
-    const normalizeAmounts = (values: AmountMap) =>
-      Object.entries(values)
-        .map(([categoryId, value]) => [categoryId, parseAmount(value)] as const)
-        .filter(([, amount]) => amount > 0)
-        .sort(([firstId], [secondId]) => firstId.localeCompare(secondId))
-
-    return JSON.stringify({
-      income: normalizeAmounts(income),
-      expense: normalizeAmounts(expense),
-      notes: text.trim(),
-    })
-  }
-
+  // Load record from database when selectedDate or activeShift changes
   useEffect(() => {
     if (!selectedDate) {
       setRecord(null)
@@ -133,32 +69,23 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
     const loadRecord = async () => {
       setLoading(true)
       try {
-        const found = await db.dailyRecords.get(`${selectedDate}_${activeShift}`)
+        const id = `${selectedDate}_${activeShift}`
+        const found = await db.dailyRecords.get(id)
         if (found) {
-          const normalized = normalizeRecord(found)
-          const nextIncome = toAmountMap(normalized.incomeItems)
-          const nextExpense = toAmountMap(normalized.expenseItems)
-          setRecord(normalized)
-          setIncomeValues(nextIncome)
-          setExpenseValues(nextExpense)
-          setAddedMonthlyIds(
-            LONG_TERM_EXPENSE_CATEGORIES
-              .filter(category => parseAmount(nextExpense[category.id]) > 0)
-              .map(category => category.id),
-          )
-          setShowMonthlyPicker(false)
-          setNotes(normalized.notes)
-          setSavedSnapshot(formSnapshot(nextIncome, nextExpense, normalized.notes))
+          setRecord(found)
+          setIncome(found.income.toString())
+          setExpense(found.expense.toString())
+          setProductSales(found.productSales.toString())
+          setNotes(found.notes)
           setIsEditing(false)
         } else {
           setRecord(null)
-          setIncomeValues({})
-          setExpenseValues({})
-          setAddedMonthlyIds([])
-          setShowMonthlyPicker(false)
+          // Reset form to blank inputs
+          setIncome('')
+          setExpense('')
+          setProductSales('')
           setNotes('')
-          setSavedSnapshot(formSnapshot({}, {}, ''))
-          setIsEditing(true)
+          setIsEditing(true) // Automatically show inputs if no record exists
         }
       } catch (error) {
         console.error('Error cargando registro de Dexie:', error)
@@ -167,87 +94,31 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
       }
     }
 
-    void loadRecord()
+    loadRecord()
   }, [selectedDate, activeShift])
 
-  const draftIncomeItems = useMemo(
-    () => buildItems(INCOME_CATEGORIES, incomeValues, 'income', record?.incomeItems ?? []),
-    [incomeValues, record],
-  )
-  const dailyExpenseItems = useMemo(
-    () => buildItems(DAILY_EXPENSE_CATEGORIES, expenseValues, 'daily', []),
-    [expenseValues],
-  )
-  const longTermExpenseItems = useMemo(
-    () => buildItems(LONG_TERM_EXPENSE_CATEGORIES.filter(category => addedMonthlyIds.includes(category.id)), expenseValues, 'longTerm', []),
-    [expenseValues, addedMonthlyIds],
-  )
-  const configuredExpenseIds = useMemo(
-    () => new Set<string>([...DAILY_EXPENSE_CATEGORIES, ...LONG_TERM_EXPENSE_CATEGORIES].map(item => item.id)),
-    [],
-  )
-  const legacyExpenseItems = (record?.expenseItems ?? [])
-    .filter(item => !configuredExpenseIds.has(item.categoryId))
-    .map(item => ({ ...item, amount: parseAmount(expenseValues[item.categoryId]) }))
-    .filter(item => item.amount > 0)
-  const draftExpenseItems = [...legacyExpenseItems, ...dailyExpenseItems, ...longTermExpenseItems]
-  const draftBalance = sumEntries(draftIncomeItems) - sumEntries(draftExpenseItems)
-  const hasUnsavedChanges = isEditing && formSnapshot(incomeValues, expenseValues, notes) !== savedSnapshot
-
-  const setValue = (
-    setter: React.Dispatch<React.SetStateAction<AmountMap>>,
-    categoryId: string,
-    value: string,
-  ) => setter(previous => ({ ...previous, [categoryId]: value }))
-
-  const availableMonthlyCategories = LONG_TERM_EXPENSE_CATEGORIES.filter(
-    category => !addedMonthlyIds.includes(category.id),
-  )
-
-  const toggleMonthlyExpense = (categoryId: string) => {
-    setSelectedMonthlyIds(previous =>
-      previous.includes(categoryId)
-        ? previous.filter(id => id !== categoryId)
-        : [...previous, categoryId],
-    )
-  }
-
-  const addSelectedMonthlyExpenses = () => {
-    if (selectedMonthlyIds.length === 0) return
-    setAddedMonthlyIds(previous => [...new Set([...previous, ...selectedMonthlyIds])])
-    setSelectedMonthlyIds([])
-    setShowMonthlyPicker(false)
-  }
-
-  const removeMonthlyExpense = (categoryId: string) => {
-    setAddedMonthlyIds(previous => previous.filter(id => id !== categoryId))
-    setExpenseValues(previous => ({ ...previous, [categoryId]: '' }))
-  }
-
-  const handleSave = async (event: React.FormEvent) => {
-    event.preventDefault()
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
     if (!selectedDate) return
 
+    const id = `${selectedDate}_${activeShift}`
     const now = Date.now()
-    const productSales = draftIncomeItems.find(item => item.categoryId === 'product_sales')?.amount ?? 0
+
     const recordData: DailyRecord = {
-      id: `${selectedDate}_${activeShift}`,
+      id,
       date: selectedDate,
       shift: activeShift,
-      income: sumEntries(draftIncomeItems.filter(item => item.categoryId !== 'product_sales')),
-      expense: sumEntries(draftExpenseItems),
-      productSales,
-      incomeItems: draftIncomeItems,
-      expenseItems: draftExpenseItems,
+      income: parseFloat(income) || 0,
+      expense: parseFloat(expense) || 0,
+      productSales: parseFloat(productSales) || 0,
       notes: notes.trim(),
-      createdAt: record?.createdAt ?? now,
-      updatedAt: now,
+      createdAt: record ? record.createdAt : now,
+      updatedAt: now
     }
 
     try {
       await db.dailyRecords.put(recordData)
       setRecord(recordData)
-      setSavedSnapshot(formSnapshot(incomeValues, expenseValues, notes))
       setIsEditing(false)
       onRecordSaved()
     } catch (error) {
@@ -257,282 +128,376 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
   }
 
   const handleCancel = () => {
-    if (!record) return
-    const nextIncome = toAmountMap(record.incomeItems)
-    const nextExpense = toAmountMap(record.expenseItems)
-    setIncomeValues(nextIncome)
-    setExpenseValues(nextExpense)
-    setAddedMonthlyIds(
-      LONG_TERM_EXPENSE_CATEGORIES
-        .filter(category => parseAmount(nextExpense[category.id]) > 0)
-        .map(category => category.id),
-    )
-    setShowMonthlyPicker(false)
-    setNotes(record.notes)
-    setSavedSnapshot(formSnapshot(nextIncome, nextExpense, record.notes))
-    setIsEditing(false)
-  }
-
-  const requestAction = (action: PendingAction) => {
-    if (hasUnsavedChanges) {
-      setPendingAction(action)
-      setShowConfirmModal(true)
-      return
+    if (record) {
+      // Revert inputs to current record values
+      setIncome(record.income.toString())
+      setExpense(record.expense.toString())
+      setProductSales(record.productSales.toString())
+      setNotes(record.notes)
+      setIsEditing(false)
     }
-    if (action.type === 'shift') setActiveShift(action.target)
-    else onNavigateDate?.(action.target)
   }
 
-  const confirmDiscard = () => {
-    if (pendingAction?.type === 'shift') setActiveShift(pendingAction.target)
-    if (pendingAction?.type === 'nav') onNavigateDate?.(pendingAction.target)
-    setPendingAction(null)
+  const hasUnsavedChanges = () => {
+    if (!isEditing) return false
+
+    const cleanIncomeNum = parseFloat(income) || 0
+    const cleanExpenseNum = parseFloat(expense) || 0
+    const cleanProductSalesNum = parseFloat(productSales) || 0
+    const cleanNotes = notes.trim()
+
+    const savedIncomeNum = record ? record.income : 0
+    const savedExpenseNum = record ? record.expense : 0
+    const savedProductSalesNum = record ? record.productSales : 0
+    const savedNotes = record ? record.notes : ''
+
+    return (
+      cleanIncomeNum !== savedIncomeNum ||
+      cleanExpenseNum !== savedExpenseNum ||
+      cleanProductSalesNum !== savedProductSalesNum ||
+      cleanNotes !== savedNotes
+    )
+  }
+
+  const handleTabClick = (shift: ShiftType) => {
+    if (shift === activeShift) return
+
+    if (hasUnsavedChanges()) {
+      setPendingAction({ type: 'shift', target: shift })
+      setShowConfirmModal(true)
+    } else {
+      setActiveShift(shift)
+    }
+  }
+
+  const handleNavigateDate = (direction: 'prev' | 'next') => {
+    if (hasUnsavedChanges()) {
+      setPendingAction({ type: 'nav', target: direction })
+      setShowConfirmModal(true)
+    } else {
+      onNavigateDate?.(direction)
+    }
+  }
+
+  const handleConfirmModal = () => {
     setShowConfirmModal(false)
+    if (pendingAction) {
+      if (pendingAction.type === 'shift') {
+        setActiveShift(pendingAction.target)
+      } else if (pendingAction.type === 'nav') {
+        onNavigateDate?.(pendingAction.target)
+      }
+      setPendingAction(null)
+    }
   }
 
-  const todayDateString = (() => {
-    const today = new Date()
-    return `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
-  })()
-  const canNavigateToNextDay = Boolean(selectedDate && selectedDate < todayDateString)
+  const handleCancelModal = () => {
+    setShowConfirmModal(false)
+    setPendingAction(null)
+  }
 
-  const formattedDay = (() => {
-    if (!selectedDate) return ''
-    const [year, month, day] = selectedDate.split('-').map(Number)
-    const result = new Date(year, month - 1, day).toLocaleDateString('es-PE', {
-      weekday: 'long',
-      day: 'numeric',
-    })
-    return result.charAt(0).toUpperCase() + result.slice(1)
-  })()
-
-  const renderAmountInput = (
-    category: Category,
-    values: AmountMap,
-    setter: React.Dispatch<React.SetStateAction<AmountMap>>,
-  ) => (
-    <div className="form-group category-field" key={category.id}>
-      <label htmlFor={`${activeShift}-${category.id}`}>{category.label}</label>
-      <div className="input-with-symbol">
-        <span className="currency-prefix">S/.</span>
-        <input
-          id={`${activeShift}-${category.id}`}
-          type="number"
-          min="0"
-          step="0.01"
-          inputMode="decimal"
-          placeholder="0.00"
-          value={values[category.id] ?? ''}
-          onChange={event => setValue(setter, category.id, event.target.value)}
-        />
-      </div>
-    </div>
-  )
 
   if (!selectedDate) {
-    return <div className="shift-manager-empty"><p>Selecciona un día para registrar tus movimientos.</p></div>
-  }
-
-  if (selectedDate > todayDateString) {
     return (
-      <div className="future-date-card" role="status">
-        <FiCalendar className="future-date-icon" aria-hidden="true" />
-        <p>No hay datos que mostrar</p>
+      <div className="shift-manager-empty">
+        <p>Selecciona un día en el calendario para registrar tus ingresos y egresos.</p>
       </div>
     )
   }
-
-  const visibleItems = activeFinanceTab === 'income' ? record?.incomeItems ?? [] : record?.expenseItems ?? []
-  const visibleTotal = activeFinanceTab === 'income' ? getIncomeTotal(record ?? {}) : getExpenseTotal(record ?? {})
 
   return (
     <div className="shift-manager-card">
+      {/* Shift Tabs */}
       <div className="shift-tabs">
-        <button type="button" className={`shift-tab-btn ${activeShift === 'morning' ? 'active' : ''}`} onClick={() => requestAction({ type: 'shift', target: 'morning' })}>
-          <FiSunrise className="tab-icon" /> <span>Mañana</span>
+        <button
+          type="button"
+          className={`shift-tab-btn ${activeShift === 'morning' ? 'active' : ''}`}
+          onClick={() => handleTabClick('morning')}
+        >
+          <FiSunrise className="tab-icon" />
+          <span>Mañana</span>
         </button>
-        <button type="button" className={`shift-tab-btn ${activeShift === 'afternoon' ? 'active' : ''}`} onClick={() => requestAction({ type: 'shift', target: 'afternoon' })}>
-          <FiSunset className="tab-icon" /> <span>Tarde</span>
+        <button
+          type="button"
+          className={`shift-tab-btn ${activeShift === 'afternoon' ? 'active' : ''}`}
+          onClick={() => handleTabClick('afternoon')}
+        >
+          <FiSunset className="tab-icon" />
+          <span>Tarde</span>
         </button>
       </div>
 
       <div className="shift-content">
-        <div className="shift-total-header-group">
-          <button type="button" className="day-nav-btn" onClick={() => requestAction({ type: 'nav', target: 'prev' })} aria-label="Día anterior"><FiChevronLeft /></button>
-          <div className="shift-day-display">
-            <span className="shift-day-title">{formattedDay}</span>
-            <div className={`shift-total-summary ${isEditing ? 'edit-preview' : ''}`}>
-              <div className="total-info">
-                <span className="total-label">Balance del turno</span>
-                <span className={`total-value ${(isEditing ? draftBalance : getBalance(record ?? {})) >= 0 ? 'positive' : 'negative'}`}>
-                  {loading ? <FiLoader className="spin-icon" /> : currency(isEditing ? draftBalance : getBalance(record ?? {}))}
-                </span>
-              </div>
-            </div>
-          </div>
-          {canNavigateToNextDay ? (
-            <button type="button" className="day-nav-btn" onClick={() => requestAction({ type: 'nav', target: 'next' })} aria-label="Día siguiente"><FiChevronRight /></button>
-          ) : <span className="day-nav-placeholder" aria-hidden="true" />}
-        </div>
-
-        <div className="finance-tabs compact" role="tablist" aria-label="Tipo de movimiento">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeFinanceTab === 'income'}
-            className={`finance-tab income ${activeFinanceTab === 'income' ? 'active' : ''}`}
-            onClick={() => onFinanceTabChange('income')}
-          >
-            <FiTrendingUp /> <span>Ingresos</span>
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={activeFinanceTab === 'expense'}
-            className={`finance-tab expense ${activeFinanceTab === 'expense' ? 'active' : ''}`}
-            onClick={() => onFinanceTabChange('expense')}
-          >
-            <FiTrendingDown /> <span>Egresos</span>
-          </button>
-        </div>
-
-        {isEditing ? (
-          <form onSubmit={handleSave} className="shift-form">
-            {activeFinanceTab === 'income' ? (
-              <section className="category-section compact-section finance-form-panel">
-                <h3 className="expense-section-title income-form-title">Ingresos</h3>
-                <div className="category-grid compact-grid">
-                  {INCOME_CATEGORIES.map(category => renderAmountInput(category, incomeValues, setIncomeValues))}
-                  {(record?.incomeItems ?? [])
-                    .filter(item => item.group === 'legacy')
-                    .map(item => renderAmountInput({ id: item.categoryId, label: item.label }, incomeValues, setIncomeValues))}
-                </div>
-              </section>
-            ) : (
-              <>
-                <section className="category-section compact-section finance-form-panel">
-                  <h3 className="expense-section-title daily-title">Gastos Diarios</h3>
-                  <div className="category-grid compact-grid">{DAILY_EXPENSE_CATEGORIES.map(category => renderAmountInput(category, expenseValues, setExpenseValues))}</div>
-                </section>
-                <section className="category-section compact-section monthly-section finance-form-panel">
-                  <h3 className="expense-section-title monthly-title">Gastos Mensuales</h3>
+        {!isEditing && record ? (
+          /* View Mode */
+          (() => {
+            const total = record.income + record.productSales - record.expense
+            return (
+              <div className="shift-view-mode">
+                <div className="shift-total-header-group">
                   <button
                     type="button"
-                    className="open-monthly-picker-btn"
-                    onClick={() => { setSelectedMonthlyIds([]); setShowMonthlyPicker(true) }}
-                    disabled={availableMonthlyCategories.length === 0}
+                    className="day-nav-btn"
+                    onClick={() => handleNavigateDate('prev')}
+                    aria-label="Día anterior"
                   >
-                    <FiPlus />
-                    <span>{availableMonthlyCategories.length ? 'Agregar gasto mensual' : 'Todos los gastos agregados'}</span>
+                    <FiChevronLeft />
                   </button>
-                  {addedMonthlyIds.length > 0 ? (
-                    <div className="monthly-fields">
-                      {addedMonthlyIds.map(categoryId => {
-                        const category = LONG_TERM_EXPENSE_CATEGORIES.find(item => item.id === categoryId)
-                        if (!category) return null
-                        return (
-                          <div className="monthly-field-row" key={category.id}>
-                            {renderAmountInput(category, expenseValues, setExpenseValues)}
-                            <button type="button" className="remove-monthly-btn" onClick={() => removeMonthlyExpense(category.id)} aria-label={`Quitar ${category.label}`} title="Quitar campo">
-                              <FiTrash2 />
-                            </button>
-                          </div>
-                        )
-                      })}
+
+                  <div className="shift-day-display">
+                    <div className="shift-day-header">
+                      <span className="shift-day-title">{getFormattedDay(selectedDate)}</span>
                     </div>
-                  ) : <p className="monthly-empty">Agrega solo los gastos que necesites registrar.</p>}
-                </section>
-                {legacyExpenseItems.length > 0 && (
-                  <section className="category-section legacy-section">
-                    <h3>Datos anteriores</h3>
-                    {legacyExpenseItems.map(item => renderAmountInput({ id: item.categoryId, label: item.label }, expenseValues, setExpenseValues))}
-                  </section>
-                )}
-              </>
-            )}
 
-            <div className="form-group notes-field">
-              <label htmlFor="shift-notes"><FiFileText className="label-icon grey" /> Notas del turno</label>
-              <textarea id="shift-notes" value={notes} onChange={event => setNotes(event.target.value)} rows={3} placeholder="Escribe alguna nota o comentario..." />
-            </div>
-            <div className="form-actions">
-              {record && <button type="button" className="btn btn-secondary" onClick={handleCancel}><FiX /> Cancelar</button>}
-              <button type="submit" className="btn btn-primary btn-grow"><FiSave /> Guardar turno</button>
-            </div>
-          </form>
-        ) : record ? (
-          <div className="shift-view-mode">
-            <div className="category-summary">
-              {visibleItems.length > 0 ? visibleItems.map(item => (
-                <div className="summary-row" key={item.categoryId}>
-                  <span>{item.label}</span><strong>{currency(item.amount)}</strong>
-                </div>
-              )) : <p className="empty-category">No hay movimientos en esta pestaña.</p>}
-              <div className="summary-row category-total"><span>Total de {activeFinanceTab === 'income' ? 'ingresos' : 'egresos'}</span><strong>{currency(visibleTotal)}</strong></div>
-            </div>
-            {record.notes && <div className="record-notes"><FiFileText /> <span>{record.notes}</span></div>}
-            <div className="record-metadata">
-              <span>Creado: {new Date(record.createdAt).toLocaleString('es-PE')}</span>
-              {record.updatedAt > record.createdAt && (
-                <span>Actualizado: {new Date(record.updatedAt).toLocaleString('es-PE')}</span>
-              )}
-            </div>
-            <button type="button" className="btn btn-primary btn-block btn-edit" onClick={() => setIsEditing(true)}><FiEdit /> Editar turno</button>
-          </div>
-        ) : null}
-      </div>
+                    <div className="shift-total-summary">
+                      <div className="total-info">
+                        <span className="total-label">Total</span>
+                        <span className={`total-value ${total >= 0 ? 'positive' : 'negative'}`}>
+                          {loading ? (
+                            <FiLoader className="spin-icon" />
+                          ) : (
+                            `S/. ${total.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
 
-      {showMonthlyPicker && createPortal(
-        <div className="modal-overlay" onClick={() => setShowMonthlyPicker(false)}>
-          <div
-            className="modal-card monthly-picker-dialog"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="monthly-picker-title"
-            onClick={event => event.stopPropagation()}
-          >
-            <div className="modal-header">
-              <h3 id="monthly-picker-title">Agregar Gasto Mensual</h3>
-              <button className="modal-close-btn" onClick={() => setShowMonthlyPicker(false)} aria-label="Cerrar">
-                <FiX />
-              </button>
-            </div>
-            <div className="modal-body monthly-picker-body">
-              <p className="monthly-picker-help">Selecciona uno o varios gastos para agregarlos al formulario.</p>
-              <div className="monthly-options-grid">
-                {availableMonthlyCategories.map(category => (
                   <button
                     type="button"
-                    className={`monthly-option-card ${selectedMonthlyIds.includes(category.id) ? 'selected' : ''}`}
-                    key={category.id}
-                    onClick={() => toggleMonthlyExpense(category.id)}
-                    aria-pressed={selectedMonthlyIds.includes(category.id)}
+                    className="day-nav-btn"
+                    onClick={() => handleNavigateDate('next')}
+                    aria-label="Siguiente día"
                   >
-                    {selectedMonthlyIds.includes(category.id) ? <FiCheck className="monthly-option-icon" /> : <FiPlus className="monthly-option-icon" />}
-                    <span>{category.label}</span>
+                    <FiChevronRight />
                   </button>
-                ))}
+                </div>
+
+                <div className="data-list">
+                  <div className="data-item income-item">
+                    <div className="item-header">
+                      <FiTrendingUp className="item-icon green" />
+                      <span className="item-label">Ingresos</span>
+                    </div>
+                    <span className="item-value">
+                      {loading ? <FiLoader className="spin-icon" /> : `S/. ${record.income.toFixed(2)}`}
+                    </span>
+                  </div>
+
+                  <div className="data-item expense-item">
+                    <div className="item-header">
+                      <FiTrendingDown className="item-icon red" />
+                      <span className="item-label">Egresos</span>
+                    </div>
+                    <span className="item-value">
+                      {loading ? <FiLoader className="spin-icon" /> : `S/. ${record.expense.toFixed(2)}`}
+                    </span>
+                  </div>
+
+                  <div className="data-item sales-item">
+                    <div className="item-header">
+                      <FiShoppingBag className="item-icon blue" />
+                      <span className="item-label">Venta de Productos</span>
+                    </div>
+                    <span className="item-value">
+                      {loading ? <FiLoader className="spin-icon" /> : `S/. ${record.productSales.toFixed(2)}`}
+                    </span>
+                  </div>
+
+                  <div className="data-item notes-item">
+                    <div className="item-header">
+                      <FiFileText className="item-icon grey" />
+                      <span className="item-label">Notas</span>
+                    </div>
+                    <p className="item-text-notes">
+                      {loading ? <FiLoader className="spin-icon grey" /> : (record.notes || 'Sin notas registradas')}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="record-metadata">
+                  <span>Creado: {new Date(record.createdAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })} ({new Date(record.createdAt).toLocaleDateString('es-PE')})</span>
+                  {record.updatedAt !== record.createdAt && (
+                    <span> | Act.: {new Date(record.updatedAt).toLocaleTimeString('es-PE', { hour: '2-digit', minute: '2-digit' })}</span>
+                  )}
+                </div>
+
+                <button
+                  type="button"
+                  className="btn btn-primary btn-block btn-edit"
+                  onClick={() => setIsEditing(true)}
+                >
+                  <FiEdit className="btn-icon-inline" /> Editar Turno
+                </button>
               </div>
-            </div>
-            <div className="modal-footer monthly-picker-footer">
-              <button type="button" className="btn btn-primary" onClick={addSelectedMonthlyExpenses} disabled={selectedMonthlyIds.length === 0}>
-                Seleccionar{selectedMonthlyIds.length > 0 ? ` (${selectedMonthlyIds.length})` : ""}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+            )
+          })()
+        ) : (
+          /* Edit Mode */
+          (() => {
+            const currentTotal = (parseFloat(income) || 0) + (parseFloat(productSales) || 0) - (parseFloat(expense) || 0)
+            return (
+              <form onSubmit={handleSave} className="shift-form">
+                <div className="shift-total-header-group">
+                  <button
+                    type="button"
+                    className="day-nav-btn"
+                    onClick={() => handleNavigateDate('prev')}
+                    aria-label="Día anterior"
+                  >
+                    <FiChevronLeft />
+                  </button>
+
+                  <div className="shift-day-display">
+                    <div className="shift-day-header">
+                      <span className="shift-day-title">{getFormattedDay(selectedDate)}</span>
+                    </div>
+
+                    <div className="shift-total-summary edit-preview">
+                      <div className="total-info">
+                        <span className="total-label">Total</span>
+                        <span className={`total-value ${currentTotal >= 0 ? 'positive' : 'negative'}`}>
+                          {loading ? (
+                            <FiLoader className="spin-icon" />
+                          ) : (
+                            `S/. ${currentTotal.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                          )}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    className="day-nav-btn"
+                    onClick={() => handleNavigateDate('next')}
+                    aria-label="Siguiente día"
+                  >
+                    <FiChevronRight />
+                  </button>
+                </div>
+
+                <div className="shift-form-grid">
+                  <div className="form-group grid-income">
+                    <label htmlFor="shift-income">
+                      <FiTrendingUp className="label-icon green" /> Ingresos
+                    </label>
+                    <div className="input-with-symbol">
+                      <span className="currency-prefix">S/.</span>
+                      <input
+                        id="shift-income"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={income}
+                        onChange={e => setIncome(e.target.value)}
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group grid-expense">
+                    <label htmlFor="shift-expense">
+                      <FiTrendingDown className="label-icon red" /> Egresos
+                    </label>
+                    <div className="input-with-symbol">
+                      <span className="currency-prefix">S/.</span>
+                      <input
+                        id="shift-expense"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={expense}
+                        onChange={e => setExpense(e.target.value)}
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group grid-sales">
+                    <label htmlFor="shift-sales">
+                      <FiShoppingBag className="label-icon blue" /> Venta de Productos
+                    </label>
+                    <div className="input-with-symbol">
+                      <span className="currency-prefix">S/.</span>
+                      <input
+                        id="shift-sales"
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        placeholder="0.00"
+                        value={productSales}
+                        onChange={e => setProductSales(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="form-group">
+                  <label htmlFor="shift-notes">
+                    <FiFileText className="label-icon grey" /> Notas
+                  </label>
+                  <textarea
+                    id="shift-notes"
+                    placeholder="Escribe alguna nota o comentario..."
+                    value={notes}
+                    onChange={e => setNotes(e.target.value)}
+                    rows={3}
+                  />
+                </div>
+
+                <div className="form-actions">
+                  {record && (
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={handleCancel}
+                    >
+                      <FiX className="btn-icon-inline" /> Cancelar
+                    </button>
+                  )}
+                  <button type="submit" className="btn btn-primary btn-grow">
+                    <FiSave className="btn-icon-inline" /> Guardar
+                  </button>
+                </div>
+              </form>
+            )
+          })()
+        )}
+      </div>
 
       {showConfirmModal && createPortal(
         <div className="modal-overlay">
           <div className="modal-card">
-            <div className="modal-header"><h3>¿Descartar cambios?</h3><button className="modal-close-btn" onClick={() => setShowConfirmModal(false)} aria-label="Cerrar"><FiX /></button></div>
-            <div className="modal-body"><p>Tienes cambios sin guardar en este turno.</p></div>
-            <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={() => setShowConfirmModal(false)}>Seguir editando</button><button type="button" className="btn btn-danger" onClick={confirmDiscard}>Descartar</button></div>
+            <div className="modal-header">
+              <h3>¿Descartar cambios?</h3>
+              <button className="modal-close-btn" onClick={handleCancelModal} aria-label="Cerrar">
+                <FiX />
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Tienes cambios sin guardar en este turno. Si cambias ahora, se perderán los datos ingresados.</p>
+            </div>
+            <div className="modal-footer">
+              <button
+                type="button"
+                className="btn btn-secondary"
+                onClick={handleCancelModal}
+              >
+                Seguir editando
+              </button>
+              <button
+                type="button"
+                className="btn btn-danger"
+                onClick={handleConfirmModal}
+              >
+                Descartar
+              </button>
+            </div>
           </div>
         </div>,
-        document.body,
+        document.body
       )}
     </div>
   )
