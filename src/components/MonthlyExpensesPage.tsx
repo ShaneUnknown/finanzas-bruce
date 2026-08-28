@@ -42,6 +42,17 @@ export function MonthlyExpensesPage({ month, onSaved }: Props) {
     setRecords(found.sort((a, b) => b.createdAt - a.createdAt))
   }, [month])
   useEffect(() => { void loadRecords() }, [loadRecords])
+  useEffect(() => {
+    if (!formMatch) return
+    const previousBodyOverflow = document.body.style.overflow
+    const previousRootOverflow = document.documentElement.style.overflow
+    document.body.style.overflow = 'hidden'
+    document.documentElement.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = previousBodyOverflow
+      document.documentElement.style.overflow = previousRootOverflow
+    }
+  }, [formMatch])
   const visibleRecords = records.filter(record => record.type === activeTab)
   const openForm = () => {
     setValues({})
