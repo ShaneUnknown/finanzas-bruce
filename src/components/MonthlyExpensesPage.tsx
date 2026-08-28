@@ -38,6 +38,22 @@ export function MonthlyExpensesPage({ month, onSaved }: Props) {
     setRecords(found.sort((a, b) => b.createdAt - a.createdAt))
   }, [month])
   useEffect(() => { void loadRecords() }, [loadRecords])
+  useEffect(() => {
+    if (!showDialog) return
+    const viewport = window.visualViewport
+    const updateViewportHeight = () => {
+      const height = viewport?.height ?? window.innerHeight
+      document.documentElement.style.setProperty('--monthly-dialog-viewport-height', height + 'px')
+    }
+    updateViewportHeight()
+    viewport?.addEventListener('resize', updateViewportHeight)
+    window.addEventListener('resize', updateViewportHeight)
+    return () => {
+      viewport?.removeEventListener('resize', updateViewportHeight)
+      window.removeEventListener('resize', updateViewportHeight)
+      document.documentElement.style.removeProperty('--monthly-dialog-viewport-height')
+    }
+  }, [showDialog])
   const visibleRecords = records.filter(record => record.type === activeTab)
   const openDialog = () => { setValues({}); setShowDialog(true) }
   const saveExpenses = async (event: React.FormEvent) => {
