@@ -5,7 +5,8 @@ import { Pagination } from 'swiper/modules'
 import { DateSelector } from './components/DateSelector'
 import { ProductSalesCard } from './components/ProductSalesCard'
 import { MonthlyExpenseTotalCard } from './components/MonthlyExpenseTotalCard'
-import { MonthlyExpensesPage } from './components/MonthlyExpensesPage'
+import { MonthlyExpenseFormPage, MonthlyExpensesPage } from './components/MonthlyExpensesPage'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { CalendarGrid } from './components/CalendarGrid'
 import { ShiftManager } from './components/ShiftManager'
 import { db, type DailyRecord, type MonthlyExpense } from './db/financeDB'
@@ -13,7 +14,12 @@ import 'swiper/css'
 import 'swiper/css/pagination'
 import './App.css'
 
-function App() {
+function Dashboard() {
+  const location = useLocation()
+  const returnedMonth = typeof location.state?.month === 'string' && /^\d{4}-\d{2}$/.test(location.state.month)
+    ? location.state.month
+    : null
+  const initialDate = returnedMonth ? new Date(Number(returnedMonth.slice(0, 4)), Number(returnedMonth.slice(5, 7)) - 1, 1) : new Date()
   const [isMobile, setIsMobile] = useState(false)
 
   useEffect(() => {
@@ -62,8 +68,8 @@ function App() {
   const isImportVisible = !hasImported
 
   // Date Navigation State
-  const [currentMonth, setCurrentMonth] = useState(new Date().getMonth())
-  const [currentYear, setCurrentYear] = useState(new Date().getFullYear())
+  const [currentMonth, setCurrentMonth] = useState(initialDate.getMonth())
+  const [currentYear, setCurrentYear] = useState(initialDate.getFullYear())
   const [selectedDay, setSelectedDay] = useState<number | null>(() => new Date().getDate())
 
   // Monthly Records State for display totals
@@ -296,7 +302,7 @@ function App() {
           >
             <SwiperSlide>
               <div className="slide-content-wrapper">
-                <MonthlyExpensesPage month={monthKey} onSaved={() => setUpdateTrigger(prev => prev + 1)} />
+                <MonthlyExpensesPage month={monthKey} />
               </div>
             </SwiperSlide>
             <SwiperSlide>
@@ -325,7 +331,7 @@ function App() {
           </Swiper>
         ) : (
           <>
-            <MonthlyExpensesPage month={monthKey} onSaved={() => setUpdateTrigger(prev => prev + 1)} />
+            <MonthlyExpensesPage month={monthKey} />
             <CalendarGrid 
               currentMonth={currentMonth}
               currentYear={currentYear}
@@ -407,6 +413,16 @@ function App() {
         </div>
       )}
     </div>
+  )
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard />} />
+      <Route path="/expenses/new/:expenseType/:month" element={<MonthlyExpenseFormPage />} />
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
   )
 }
 

@@ -13,7 +13,7 @@
 .monthly-expense-row span { color:var(--text); font-size:.75rem; }
 .monthly-expense-row b { color:#ef4444; white-space:nowrap; }
 .monthly-expense-empty { padding:50px 15px; text-align:center; color:var(--text); border:1px dashed var(--border); border-radius:12px; }
-.monthly-expense-form-screen { position:fixed; inset:0; z-index:1000; overflow-x:hidden; overflow-y:auto; overscroll-behavior-y:contain; -webkit-overflow-scrolling:touch; background:var(--bg); color:var(--text); }
+.monthly-expense-form-screen { width:100%; min-height:100svh; background:var(--bg); color:var(--text); text-align:left; }
 .monthly-expense-screen-content { width:100%; max-width:720px; min-height:100%; margin:0 auto; background:var(--bg-card); box-sizing:border-box; }
 .monthly-expense-screen-header { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:14px; padding:16px 20px; background:var(--bg-card); border-bottom:1px solid var(--border); }
 .monthly-expense-screen-header div { display:flex; flex-direction:column; }
