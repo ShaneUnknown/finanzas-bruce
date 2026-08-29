@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { FiSun, FiMoon, FiUploadCloud, FiDownloadCloud, FiX } from 'react-icons/fi'
+import { FiSun, FiMoon, FiUploadCloud, FiDownloadCloud, FiX, FiLogOut } from 'react-icons/fi'
 import { Swiper, SwiperSlide } from 'swiper/react'
 import { Pagination } from 'swiper/modules'
 import { DateSelector } from './components/DateSelector'
@@ -10,11 +10,14 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { CalendarGrid } from './components/CalendarGrid'
 import { ShiftManager } from './components/ShiftManager'
 import { db, type DailyRecord, type MonthlyExpense } from './db/financeDB'
+import { useAuth } from './auth/useAuth'
+import { WelcomePage } from './components/WelcomePage'
 import 'swiper/css'
 import 'swiper/css/pagination'
 import './App.css'
 
 function Dashboard() {
+  const { logOut } = useAuth()
   const location = useLocation()
   const returnedMonth = typeof location.state?.month === 'string' && /^\d{4}-\d{2}$/.test(location.state.month)
     ? location.state.month
@@ -250,6 +253,9 @@ function Dashboard() {
                 <FiDownloadCloud />
               </button>
             )}
+            <button type="button" className="header-action-btn" onClick={() => void logOut()} title="Cerrar sesión" aria-label="Cerrar sesión">
+              <FiLogOut />
+            </button>
             <button 
               type="button" 
               className="theme-toggle-btn" 
@@ -421,6 +427,9 @@ function Dashboard() {
 }
 
 function App() {
+  const { user, loading } = useAuth()
+  if (loading) return <main className="auth-loading"><span className="auth-loading-spinner" /><p>Verificando acceso…</p></main>
+  if (!user) return <WelcomePage />
   return (
     <Routes>
       <Route path="/" element={<Dashboard />} />
