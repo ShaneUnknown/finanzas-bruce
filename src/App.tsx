@@ -12,12 +12,14 @@ import { ShiftManager } from './components/ShiftManager'
 import { db, type DailyRecord, type MonthlyExpense } from './db/financeDB'
 import { useAuth } from './auth/useAuth'
 import { WelcomePage } from './components/WelcomePage'
+import { ref, uploadBytes } from 'firebase/storage'
+import { storage } from './firebase'
 import 'swiper/css'
 import 'swiper/css/pagination'
 import './App.css'
 
 function Dashboard() {
-  const { logOut } = useAuth()
+  const { logOut, user } = useAuth()
   const location = useLocation()
   const returnedMonth = typeof location.state?.month === 'string' && /^\d{4}-\d{2}$/.test(location.state.month)
     ? location.state.month
@@ -64,14 +66,18 @@ function Dashboard() {
   }
 
   // Backup / Restore States
-  const [lastExportTime, setLastExportTime] = useState<string | null>(() => localStorage.getItem('last_export_time'))
+  const [lastBackupTime, setLastBackupTime] = useState<string | null>(() => localStorage.getItem('last_cloud_backup_time'))
   const [hasImported, setHasImported] = useState<boolean>(() => localStorage.getItem('has_imported') === 'true')
   const [showExportModal, setShowExportModal] = useState(false)
   const [showImportModal, setShowImportModal] = useState(false)
+  const [backupUploading, setBackupUploading] = useState(false)
+  const [backupError, setBackupError] = useState<string | null>(null)
 
   // Visibility constraints
-  const isExportVisible = !lastExportTime || (Date.now() - parseInt(lastExportTime, 10)) > 24 * 60 * 60 * 1000
+  const isExportVisible = !lastBackupTime || (Date.now() - parseInt(lastBackupTime, 10)) > 7 * 24 * 60 * 60 * 1000
   const isImportVisible = !hasImported
+
+  useEffect(() => { if (isExportVisible) setShowExportModal(true) }, [isExportVisible])
 
   // Date Navigation State
   const [currentMonth, setCurrentMonth] = useState(initialDate.getMonth())
@@ -162,27 +168,59 @@ function Dashboard() {
     setSelectedDay(currentDate.getDate())
   }
 
-  const handleExportBackup = async () => {
+  const createBackup = async () => {
+    const [dailyRecords, storedMonthlyExpenses] = await Promise.all([
+      db.dailyRecords.toArray(),
+      db.monthlyExpenses.toArray(),
+    ])
+    const now = new Date()
+    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
+    return {
+      fileName: 'respaldo_finanzas_' + timestamp + '.json',
+      json: JSON.stringify({
+        schemaVersion: 2,
+        exportedAt: now.toISOString(),
+        dailyRecords,
+        monthlyExpenses: storedMonthlyExpenses,
+      }, null, 2),
+    }
+  }
+
+  const handleDownloadBackup = async () => {
     try {
-      const records = await db.dailyRecords.toArray()
-      const dataStr = JSON.stringify(records, null, 2)
-      const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr)
+      const backup = await createBackup()
+      const url = URL.createObjectURL(new Blob([backup.json], { type: 'application/json' }))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = backup.fileName
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('Error al descargar copia de seguridad:', error)
+      setBackupError('No se pudo generar la copia de seguridad.')
+    }
+  }
 
-      const exportFileDefaultName = `respaldo_finanzas_${new Date().toISOString().slice(0, 10)}.json`
-
-      const linkElement = document.createElement('a')
-      linkElement.setAttribute('href', dataUri)
-      linkElement.setAttribute('download', exportFileDefaultName)
-      linkElement.click()
-
-      // Save timestamp in localStorage and state
+  const handleCloudBackup = async () => {
+    if (!user) return
+    setBackupUploading(true)
+    setBackupError(null)
+    try {
+      const backup = await createBackup()
+      const backupRef = ref(storage, 'finanzas-backups/' + user.uid + '/' + backup.fileName)
+      await uploadBytes(backupRef, new Blob([backup.json], { type: 'application/json' }), {
+        contentType: 'application/json',
+        customMetadata: { app: 'finanzas-bruce', schemaVersion: '2' },
+      })
       const now = Date.now().toString()
-      localStorage.setItem('last_export_time', now)
-      setLastExportTime(now)
+      localStorage.setItem('last_cloud_backup_time', now)
+      setLastBackupTime(now)
       setShowExportModal(false)
     } catch (error) {
-      console.error('Error al exportar copia de seguridad:', error)
-      alert('Hubo un error al exportar la copia de seguridad.')
+      console.error('Error al subir copia de seguridad:', error)
+      setBackupError('No se pudo subir el respaldo. Verifica que Firebase Storage esté habilitado e inténtalo otra vez.')
+    } finally {
+      setBackupUploading(false)
     }
   }
 
@@ -194,11 +232,10 @@ function Dashboard() {
     reader.onload = async (e) => {
       try {
         const content = e.target?.result as string
-        const records = JSON.parse(content) as DailyRecord[]
-
-        if (!Array.isArray(records)) {
-          throw new Error('El archivo de copia de seguridad no es válido.')
-        }
+        const parsed = JSON.parse(content) as DailyRecord[] | { dailyRecords?: DailyRecord[]; monthlyExpenses?: MonthlyExpense[] }
+        const records = Array.isArray(parsed) ? parsed : parsed.dailyRecords
+        const restoredMonthlyExpenses = Array.isArray(parsed) ? [] : (parsed.monthlyExpenses ?? [])
+        if (!Array.isArray(records)) throw new Error('El archivo de copia de seguridad no es válido.')
 
         // Validate basic properties
         for (const rec of records) {
@@ -208,7 +245,10 @@ function Dashboard() {
         }
 
         // Restore in Dexie
-        await db.dailyRecords.bulkPut(records)
+        await db.transaction('rw', db.dailyRecords, db.monthlyExpenses, async () => {
+          await db.dailyRecords.bulkPut(records)
+          if (restoredMonthlyExpenses.length) await db.monthlyExpenses.bulkPut(restoredMonthlyExpenses)
+        })
 
         // Save status in localStorage and state
         localStorage.setItem('has_imported', 'true')
@@ -368,24 +408,19 @@ function Dashboard() {
         <div className="modal-overlay">
           <div className="modal-card">
             <div className="modal-header">
-              <h3>Crear Copia de Seguridad</h3>
+              <h3>Respaldo semanal</h3>
               <button className="modal-close-btn" onClick={() => setShowExportModal(false)}>
                 <FiX />
               </button>
             </div>
             <div className="modal-body">
-              <p>Recomendamos respaldar tu información para evitar pérdidas si borras el historial o si desinstalas el navegador.</p>
-              <p className="modal-warning">
-                Descargarás un archivo en formato <strong>.json</strong> que contiene todos tus registros financieros.
-              </p>
+              <p>Guarda en Firebase Storage una copia JSON de los turnos y gastos mensuales de este dispositivo.</p>
+              <p className="modal-warning">El recordatorio volverá a mostrarse una semana después de una subida exitosa.</p>
+              {backupError && <p className="backup-error" role="alert">{backupError}</p>}
             </div>
             <div className="modal-footer">
-              <button className="btn btn-secondary" onClick={() => setShowExportModal(false)}>
-                Cancelar
-              </button>
-              <button className="btn btn-primary" onClick={handleExportBackup}>
-                Descargar Respaldo
-              </button>
+              <button className="btn btn-secondary" onClick={() => void handleDownloadBackup()} disabled={backupUploading}>Descargar JSON</button>
+              <button className="btn btn-primary" onClick={() => void handleCloudBackup()} disabled={backupUploading}>{backupUploading ? 'Subiendo…' : 'Subir respaldo'}</button>
             </div>
           </div>
         </div>

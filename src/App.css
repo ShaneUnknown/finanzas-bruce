@@ -536,3 +536,5 @@ input:focus, select:focus {
 }
 
 .auth-loading{width:100%;min-height:100svh;display:grid;place-content:center;justify-items:center;gap:14px;color:var(--text)}.auth-loading-spinner{width:34px;height:34px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+
+.backup-error{padding:10px 12px;border-radius:9px;background:rgba(239,68,68,.1);color:#dc2626;font-size:.82rem}.modal-footer{flex-wrap:wrap}.modal-footer .btn:disabled{opacity:.6;cursor:wait}
