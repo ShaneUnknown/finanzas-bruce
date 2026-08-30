@@ -229,6 +229,12 @@
   flex-shrink: 0;
 }
 
+.day-nav-spacer {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
 .day-nav-btn:hover {
   background: var(--accent-bg);
   color: var(--accent);

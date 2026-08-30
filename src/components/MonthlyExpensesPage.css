@@ -1,33 +1,143 @@
+.expense-theme-fixed { --expense-category:#2563eb; --expense-category-hover:#1d4ed8; --expense-category-soft:rgba(37,99,235,.14); }
+.expense-theme-variable { --expense-category:#d97706; --expense-category-hover:#b45309; --expense-category-soft:rgba(217,119,6,.14); }
+.expense-theme-supplier { --expense-category:#7c3aed; --expense-category-hover:#6d28d9; --expense-category-soft:rgba(124,58,237,.14); }
 .monthly-expenses-page { width:100%; min-height:520px; padding:20px; box-sizing:border-box; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); }
 .monthly-expenses-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
 .monthly-expenses-header h2 { margin:2px 0 0; color:var(--text-h); font-size:1.35rem; }
 .eyebrow { color:var(--accent); font-size:.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
-.new-expense-btn { display:flex; align-items:center; gap:6px; border:0; border-radius:10px; padding:10px 12px; background:var(--accent); color:white; font-weight:700; cursor:pointer; }
+.new-expense-btn { display:flex; align-items:center; gap:6px; border:0; border-radius:10px; padding:10px 12px; background:var(--expense-category); color:white; font-weight:700; cursor:pointer; transition:background .2s ease, transform .2s ease; }
+.new-expense-btn:hover { background:var(--expense-category-hover); transform:translateY(-1px); }
 .expense-tabs { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; padding:5px; background:var(--code-bg); border-radius:12px; }
 .expense-tabs button { border:0; background:transparent; color:var(--text); padding:10px 4px; border-radius:9px; font-weight:700; cursor:pointer; font-size:.82rem; }
-.expense-tabs button.active { background:var(--bg-card); color:var(--accent); box-shadow:var(--shadow); }
+.expense-tabs button.active { background:var(--expense-category); color:white; box-shadow:0 4px 10px var(--expense-category-soft); }
 .monthly-expense-list { display:flex; flex-direction:column; gap:10px; margin-top:16px; max-height:380px; overflow-y:auto; }
-.monthly-expense-row { display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px 14px; border:1px solid var(--border); border-radius:12px; }
+.monthly-expense-row { width:100%; display:flex; justify-content:space-between; align-items:center; gap:12px; padding:13px 14px; border:1px solid var(--border); border-radius:12px; background:var(--bg-card); text-align:left; font:inherit; cursor:pointer; }
+.monthly-expense-row:hover { border-color:var(--accent-border); background:var(--accent-bg); }
+.monthly-expense-row:focus-visible { outline:2px solid var(--accent); outline-offset:2px; }
 .monthly-expense-row div { display:flex; flex-direction:column; gap:3px; min-width:0; }
 .monthly-expense-row strong { color:var(--text-h); font-size:.9rem; }
 .monthly-expense-row span { color:var(--text); font-size:.75rem; }
 .monthly-expense-row b { color:#ef4444; white-space:nowrap; }
 .monthly-expense-empty { padding:50px 15px; text-align:center; color:var(--text); border:1px dashed var(--border); border-radius:12px; }
-.monthly-expense-form-screen { width:100%; min-height:100svh; background:var(--bg); color:var(--text); text-align:left; }
-.monthly-expense-screen-content { width:100%; max-width:720px; min-height:100%; margin:0 auto; background:var(--bg-card); box-sizing:border-box; }
-.monthly-expense-screen-header { position:sticky; top:0; z-index:2; display:flex; align-items:center; gap:14px; padding:16px 20px; background:var(--bg-card); border-bottom:1px solid var(--border); }
+.monthly-expense-form-screen {
+  width:100%;
+  min-height:100svh;
+  padding:24px;
+  box-sizing:border-box;
+  background:var(--bg);
+  color:var(--text);
+  text-align:left;
+}
+.monthly-expense-screen-content { width:100%; max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:18px; box-sizing:border-box; }
+.monthly-expense-screen-header { display:flex; align-items:center; gap:14px; padding:18px 20px; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); }
+.create-expense-header { justify-content:space-between; }
+.create-expense-header { border-color:var(--expense-category); }
+.create-expense-header .create-expense-title span { color:var(--expense-category); font-weight:800; }
+.expense-theme-fixed .monthly-expense-screen-save:not(:disabled),
+.expense-theme-variable .monthly-expense-screen-save:not(:disabled),
+.expense-theme-supplier .monthly-expense-screen-save:not(:disabled) { background:var(--expense-category); box-shadow:0 4px 10px var(--expense-category-soft); }
+.expense-theme-fixed .monthly-expense-screen-save:hover:not(:disabled),
+.expense-theme-variable .monthly-expense-screen-save:hover:not(:disabled),
+.expense-theme-supplier .monthly-expense-screen-save:hover:not(:disabled) { background:var(--expense-category-hover); }
+.create-expense-title { min-width:0; display:flex !important; flex-direction:row !important; align-items:center; gap:14px; }
+.create-expense-title > div { min-width:0; }
 .monthly-expense-screen-header div { display:flex; flex-direction:column; }
 .monthly-expense-screen-header span { color:var(--text); font-size:.75rem; text-transform:uppercase; letter-spacing:.08em; }
 .monthly-expense-screen-header h1 { margin:0; color:var(--text-h); font-size:1.25rem; }
-.screen-back-btn { width:42px; height:42px; flex:0 0 auto; display:grid; place-items:center; border:1px solid var(--border); border-radius:50%; background:var(--bg-card); color:var(--text-h); font-size:1.25rem; cursor:pointer; }
-.monthly-expense-screen-body { padding:20px 20px calc(28px + env(safe-area-inset-bottom)); }
-.monthly-expense-screen-body > p { margin:0 0 18px; color:var(--text); font-size:.9rem; }
-.monthly-expense-screen-save { display:flex; align-items:center; justify-content:center; gap:8px; margin-top:24px; }
-.monthly-expense-fields { display:grid; grid-template-columns:1fr; gap:14px; }
+.screen-back-btn { width:42px; height:42px; flex:0 0 auto; display:grid; place-items:center; border:1px solid var(--border); border-radius:12px; background:var(--code-bg); color:var(--text-h); font-size:1.25rem; cursor:pointer; }
+.monthly-expense-screen-form { overflow:hidden; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); }
+.monthly-expense-screen-body { padding:18px 20px calc(20px + env(safe-area-inset-bottom)); background:var(--bg-card); }
+.monthly-expense-screen-save { flex:0 0 auto; display:flex; align-items:center; justify-content:center; gap:8px; white-space:nowrap; }
+.monthly-expense-screen-save:disabled,
+.monthly-expense-screen-save:disabled:hover { background:#94a3b8; color:#f8fafc; box-shadow:none; transform:none; cursor:not-allowed; }
+:root.dark .monthly-expense-screen-save:disabled,
+:root.dark .monthly-expense-screen-save:disabled:hover { background:#475569; color:#cbd5e1; }
+.monthly-expense-fields { display:grid; grid-template-columns:1fr; column-gap:20px; row-gap:0; }
 .monthly-expense-fields.two-columns { grid-template-columns:repeat(2,minmax(0,1fr)); }
-.monthly-expense-field { min-width:0; }
-.monthly-expense-field > span { display:block; margin-bottom:6px; font-size:.82rem; }
-.monthly-expense-field > div { display:flex; align-items:center; border:1px solid var(--accent-border); border-radius:9px; background:var(--bg-card); overflow:hidden; }
-.monthly-expense-field > div > span { padding-left:11px; color:var(--text); font-size:.85rem; }
-.monthly-expense-field input { width:100%; min-width:0; border:0; box-shadow:none; padding:11px 8px; }
-@media(max-width:420px){ .monthly-expenses-page{padding:16px;min-height:500px}.monthly-expenses-header{align-items:flex-start}.new-expense-btn{font-size:.8rem;padding:9px}.monthly-expense-fields.two-columns{gap:10px}.monthly-expense-field > span{font-size:.75rem}.monthly-expense-field input{padding:10px 6px} }
+.monthly-expense-field {
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:6px;
+  padding:10px 0 12px;
+  border-bottom:none;
+  margin-bottom:5px;
+}
+.monthly-expense-field:last-child,
+.monthly-expense-fields.two-columns .monthly-expense-field:nth-last-child(-n + 2) { border-bottom:none; margin-bottom:0; }
+.monthly-expense-field > span { color:var(--text-h); font-size:.92rem; font-weight:700; line-height:1.35; }
+.monthly-expense-input { position:relative; display:flex; align-items:center; width:100%; }
+.monthly-expense-input > span { position:absolute; left:14px; z-index:1; color:var(--text); font-size:.95rem; font-weight:600; opacity:.7; pointer-events:none; user-select:none; }
+.monthly-expense-input input { width:100%; min-width:0; padding:11px 16px 11px 46px; border:1px solid var(--accent-border); border-radius:10px; background:var(--code-bg); box-sizing:border-box; }
+.monthly-expense-input input:focus { outline:none; border-color:var(--accent); box-shadow:none; }
+@media(max-width:480px){
+  .create-expense-header{gap:10px}
+  .create-expense-title{gap:10px}
+  .monthly-expense-screen-save{padding:10px 12px;font-size:.82rem}
+}
+
+@media(max-width:420px){ .monthly-expenses-page{padding:16px;min-height:500px}.monthly-expenses-header{align-items:flex-start}.new-expense-btn{font-size:.8rem;padding:9px}.monthly-expense-field > span{font-size:.88rem}.monthly-expense-input input{padding:12px 12px 12px 44px} }
+
+@media(max-width:600px){
+  .monthly-expense-form-screen{padding:16px}
+  .monthly-expense-screen-content{gap:14px}
+  .monthly-expense-screen-header{padding:16px;border-radius:16px}
+  .monthly-expense-screen-form{border-radius:16px}
+  .monthly-expense-screen-body{padding:12px 16px calc(18px + env(safe-area-inset-bottom))}
+  .monthly-expense-fields.two-columns{grid-template-columns:1fr}
+  .monthly-expense-field{padding:9px 0 11px}
+  .monthly-expense-fields.two-columns .monthly-expense-field:nth-last-child(2){border-bottom:none}
+}
+
+
+.monthly-expense-manager {
+  display:flex;
+  flex-direction:column;
+  gap:12px;
+  padding:16px;
+  background:var(--bg-card);
+  border:1px solid var(--border);
+  border-radius:20px;
+  box-shadow:var(--shadow);
+}
+.expense-manager-row {
+  display:grid;
+  grid-template-columns:minmax(0, 1.5fr) minmax(150px, .7fr);
+  gap:12px 16px;
+  padding:14px 0 16px;
+  border-bottom:none;
+  margin-bottom:5px;
+}
+.expense-manager-row:last-child { border-bottom:0; margin-bottom:0; }
+.expense-manager-info { display:flex; align-items:center; min-width:0; }
+.expense-manager-info strong { color:var(--text-h); font-size:1rem; line-height:1.35; }
+.expense-manager-row .monthly-expense-input input { width:100%; min-width:0; box-sizing:border-box; background:var(--code-bg); box-shadow:none; }
+.expense-manager-row .monthly-expense-input input:focus { outline:none; border-color:var(--accent); box-shadow:none; }
+.expense-manager-controls { display:flex; align-items:center; gap:8px; min-width:0; }
+.expense-manager-controls .monthly-expense-input { flex:1; min-width:0; }
+.expense-delete-btn,
+.expense-manager-controls .expense-save-btn {
+  width:42px;
+  height:42px;
+  min-width:42px;
+  flex:0 0 42px;
+  display:grid;
+  place-items:center;
+  padding:0;
+  box-sizing:border-box;
+  border-radius:9px;
+  font-size:1.05rem;
+  line-height:1;
+  cursor:pointer;
+}
+.expense-delete-btn { border:1px solid rgba(239,68,68,.35); background:rgba(239,68,68,.08); color:#ef4444; }
+.expense-manager-controls .expense-save-btn { border:0; color:#fff; box-shadow:none; }
+.expense-manager-controls .expense-save-btn:hover:not(:disabled) { transform:none; box-shadow:none; }
+.expense-manager-controls .expense-save-btn:disabled { opacity:.45; cursor:default; transform:none; box-shadow:none; }
+.expense-delete-btn svg, .expense-manager-controls .expense-save-btn svg { width:18px; height:18px; display:block; }
+
+@media(max-width:600px) {
+  .monthly-expense-manager { padding:10px 14px; border-radius:16px; }
+  .expense-manager-row { grid-template-columns:1fr; gap:8px; padding:12px 0 14px; }
+  .expense-manager-controls { width:100%; }
+}

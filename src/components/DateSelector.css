@@ -79,6 +79,12 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+.nav-btn-spacer {
+  width: 38px;
+  height: 38px;
+  flex-shrink: 0;
+}
+
 .nav-btn:hover {
   background: var(--accent-bg);
   color: var(--accent);
@@ -115,6 +121,10 @@
     font-size: 1.05rem;
   }
   .nav-btn {
+    width: 32px;
+    height: 32px;
+  }
+  .nav-btn-spacer {
     width: 32px;
     height: 32px;
   }

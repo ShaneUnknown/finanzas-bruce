@@ -67,3 +67,5 @@
 }
 
 .monthly-total-card .monthly-expense-total { color:#ef4444; background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.3); }
+.monthly-balance-card .monthly-balance-positive { color:#10b981; background:rgba(16,185,129,.1); border-color:rgba(16,185,129,.3); }
+.monthly-balance-card .monthly-balance-negative { color:#ef4444; background:rgba(239,68,68,.1); border-color:rgba(239,68,68,.3); }

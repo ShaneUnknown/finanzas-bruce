@@ -1,5 +1,5 @@
 import { getApp, getApps, initializeApp } from 'firebase/app'
-import { getAuth } from 'firebase/auth'
+import { getAuth, indexedDBLocalPersistence, setPersistence } from 'firebase/auth'
 import { getStorage } from 'firebase/storage'
 
 const firebaseConfig = {
@@ -14,5 +14,8 @@ const firebaseConfig = {
 
 export const firebaseApp = getApps().length ? getApp() : initializeApp(firebaseConfig)
 export const auth = getAuth(firebaseApp)
+export const authPersistenceReady = setPersistence(auth, indexedDBLocalPersistence).catch(error => {
+  console.error('No se pudo configurar la persistencia local de Firebase Auth:', error)
+})
 
 export const storage = getStorage(firebaseApp)

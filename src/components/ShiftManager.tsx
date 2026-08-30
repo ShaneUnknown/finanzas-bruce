@@ -21,6 +21,7 @@ interface ShiftManagerProps {
   selectedDate: string | null // format: YYYY-MM-DD
   onRecordSaved: () => void
   onNavigateDate?: (direction: 'prev' | 'next') => void
+  canNavigateNext?: boolean
 }
 
 type ShiftType = 'morning' | 'afternoon'
@@ -32,7 +33,8 @@ type PendingAction =
 export const ShiftManager: React.FC<ShiftManagerProps> = ({ 
   selectedDate, 
   onRecordSaved,
-  onNavigateDate 
+  onNavigateDate,
+  canNavigateNext = true
 }) => {
   const getFormattedDay = (dateStr: string | null) => {
     if (!dateStr) return ''
@@ -44,7 +46,9 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
     })
     return formatted.charAt(0).toUpperCase() + formatted.slice(1)
   }
-  const [activeShift, setActiveShift] = useState<ShiftType>('morning')
+  const [activeShift, setActiveShift] = useState<ShiftType>(() => (
+    new Date().getHours() < 12 ? 'morning' : 'afternoon'
+  ))
   const [record, setRecord] = useState<DailyRecord | null>(null)
   const [loading, setLoading] = useState(false)
   const [isEditing, setIsEditing] = useState(false)
@@ -52,6 +56,10 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
   // Unsaved changes modal states
   const [showConfirmModal, setShowConfirmModal] = useState(false)
   const [pendingAction, setPendingAction] = useState<PendingAction | null>(null)
+  const closeConfirmDialog = () => {
+    setShowConfirmModal(false)
+    setPendingAction(null)
+  }
 
   // Form inputs state
   const [income, setIncome] = useState('')
@@ -181,6 +189,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
 
   const handleConfirmModal = () => {
     setShowConfirmModal(false)
+    closeConfirmDialog()
     if (pendingAction) {
       if (pendingAction.type === 'shift') {
         setActiveShift(pendingAction.target)
@@ -191,10 +200,7 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
     }
   }
 
-  const handleCancelModal = () => {
-    setShowConfirmModal(false)
-    setPendingAction(null)
-  }
+  const handleCancelModal = () => closeConfirmDialog()
 
 
   if (!selectedDate) {
@@ -263,14 +269,16 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    className="day-nav-btn"
-                    onClick={() => handleNavigateDate('next')}
-                    aria-label="Siguiente día"
-                  >
-                    <FiChevronRight />
-                  </button>
+                  {canNavigateNext ? (
+                    <button
+                      type="button"
+                      className="day-nav-btn"
+                      onClick={() => handleNavigateDate('next')}
+                      aria-label="Siguiente día"
+                    >
+                      <FiChevronRight />
+                    </button>
+                  ) : <span className="day-nav-spacer" aria-hidden="true" />}
                 </div>
 
                 <div className="data-list">
@@ -367,14 +375,16 @@ export const ShiftManager: React.FC<ShiftManagerProps> = ({
                     </div>
                   </div>
 
-                  <button
-                    type="button"
-                    className="day-nav-btn"
-                    onClick={() => handleNavigateDate('next')}
-                    aria-label="Siguiente día"
-                  >
-                    <FiChevronRight />
-                  </button>
+                  {canNavigateNext ? (
+                    <button
+                      type="button"
+                      className="day-nav-btn"
+                      onClick={() => handleNavigateDate('next')}
+                      aria-label="Siguiente día"
+                    >
+                      <FiChevronRight />
+                    </button>
+                  ) : <span className="day-nav-spacer" aria-hidden="true" />}
                 </div>
 
                 <div className="shift-form-grid">
