@@ -1,6 +1,6 @@
-.expense-theme-fixed { --expense-category:#2563eb; --expense-category-hover:#1d4ed8; --expense-category-soft:rgba(37,99,235,.14); }
-.expense-theme-variable { --expense-category:#d97706; --expense-category-hover:#b45309; --expense-category-soft:rgba(217,119,6,.14); }
-.expense-theme-supplier { --expense-category:#7c3aed; --expense-category-hover:#6d28d9; --expense-category-soft:rgba(124,58,237,.14); }
+.expense-theme-fixed { --expense-category:#2563eb; --expense-category-hover:#1d4ed8; --expense-category-soft:rgba(37,99,235,.14); --expense-field-border:rgba(37,99,235,.45); --expense-focus-shadow:rgba(37,99,235,.32); }
+.expense-theme-variable { --expense-category:#d97706; --expense-category-hover:#b45309; --expense-category-soft:rgba(217,119,6,.14); --expense-field-border:rgba(217,119,6,.45); --expense-focus-shadow:rgba(217,119,6,.32); }
+.expense-theme-supplier { --expense-category:#7c3aed; --expense-category-hover:#6d28d9; --expense-category-soft:rgba(124,58,237,.14); --expense-field-border:rgba(124,58,237,.45); --expense-focus-shadow:rgba(124,58,237,.32); }
 .monthly-expenses-page { width:100%; min-height:520px; padding:20px; box-sizing:border-box; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); }
 .monthly-expenses-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
 .monthly-expenses-header h2 { margin:2px 0 0; color:var(--text-h); font-size:1.35rem; }
@@ -31,7 +31,7 @@
 .monthly-expense-screen-content { width:100%; max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:18px; box-sizing:border-box; }
 .monthly-expense-screen-header { display:flex; align-items:center; gap:14px; padding:18px 20px; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); }
 .create-expense-header { justify-content:space-between; }
-.create-expense-header { border-color:var(--expense-category); }
+.create-expense-header { border-color:var(--expense-field-border); }
 .create-expense-header .create-expense-title span { color:var(--expense-category); font-weight:800; }
 .expense-theme-fixed .monthly-expense-screen-save:not(:disabled),
 .expense-theme-variable .monthly-expense-screen-save:not(:disabled),
@@ -67,9 +67,10 @@
 .monthly-expense-fields.two-columns .monthly-expense-field:nth-last-child(-n + 2) { border-bottom:none; margin-bottom:0; }
 .monthly-expense-field > span { color:var(--text-h); font-size:.92rem; font-weight:700; line-height:1.35; }
 .monthly-expense-input { position:relative; display:flex; align-items:center; width:100%; }
-.monthly-expense-input > span { position:absolute; left:14px; z-index:1; color:var(--text); font-size:.95rem; font-weight:600; opacity:.7; pointer-events:none; user-select:none; }
-.monthly-expense-input input { width:100%; min-width:0; padding:11px 16px 11px 46px; border:1px solid var(--accent-border); border-radius:10px; background:var(--code-bg); box-sizing:border-box; }
-.monthly-expense-input input:focus { outline:none; border-color:var(--accent); box-shadow:none; }
+.monthly-expense-input > span { position:absolute; left:14px; z-index:1; color:var(--expense-category); font-size:.95rem; font-weight:700; pointer-events:none; user-select:none; }
+.monthly-expense-input input { width:100%; min-width:0; padding:11px 16px 11px 46px; border:1px solid var(--expense-field-border); border-radius:10px; background:var(--code-bg); color:var(--text-h); box-sizing:border-box; transition:border-color .2s ease, background-color .2s ease, box-shadow .2s ease; }
+.monthly-expense-input input::placeholder { color:var(--expense-category); opacity:.55; }
+.monthly-expense-input input:focus { outline:none; border-color:var(--expense-category-hover); background:var(--code-bg); box-shadow:0 0 18px 2px var(--expense-focus-shadow); }
 @media(max-width:480px){
   .create-expense-header{gap:10px}
   .create-expense-title{gap:10px}
@@ -111,8 +112,8 @@
 .expense-manager-row:last-child { border-bottom:0; margin-bottom:0; }
 .expense-manager-info { display:flex; align-items:center; min-width:0; }
 .expense-manager-info strong { color:var(--text-h); font-size:1rem; line-height:1.35; }
-.expense-manager-row .monthly-expense-input input { width:100%; min-width:0; box-sizing:border-box; background:var(--code-bg); box-shadow:none; }
-.expense-manager-row .monthly-expense-input input:focus { outline:none; border-color:var(--accent); box-shadow:none; }
+.expense-manager-row .monthly-expense-input input { width:100%; min-width:0; box-sizing:border-box; background:var(--code-bg); border-color:var(--expense-field-border); }
+.expense-manager-row .monthly-expense-input input:focus { outline:none; border-color:var(--expense-category-hover); background:var(--code-bg); box-shadow:0 0 18px 2px var(--expense-focus-shadow); }
 .expense-manager-controls { display:flex; align-items:center; gap:8px; min-width:0; }
 .expense-manager-controls .monthly-expense-input { flex:1; min-width:0; }
 .expense-delete-btn,
