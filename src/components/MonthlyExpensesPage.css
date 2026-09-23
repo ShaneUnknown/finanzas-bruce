@@ -1,6 +1,6 @@
-.expense-theme-fixed { --expense-category:#2563eb; --expense-category-hover:#1d4ed8; --expense-category-soft:rgba(37,99,235,.14); --expense-field-border:rgba(37,99,235,.45); --expense-focus-shadow:rgba(37,99,235,.32); }
+.expense-theme-fixed { --expense-category-base:#2563eb; --expense-category-hover-base:#1d4ed8; --expense-category:var(--expense-category-base); --expense-category-hover:var(--expense-category-hover-base); --expense-category-soft:rgba(37,99,235,.14); --expense-field-border:rgba(37,99,235,.45); --expense-focus-shadow:rgba(37,99,235,.32); }
 .expense-theme-variable { --expense-category:#d97706; --expense-category-hover:#b45309; --expense-category-soft:rgba(217,119,6,.14); --expense-field-border:rgba(217,119,6,.45); --expense-focus-shadow:rgba(217,119,6,.32); }
-.expense-theme-supplier { --expense-category:#7c3aed; --expense-category-hover:#6d28d9; --expense-category-soft:rgba(124,58,237,.14); --expense-field-border:rgba(124,58,237,.45); --expense-focus-shadow:rgba(124,58,237,.32); }
+.expense-theme-supplier { --expense-category-base:#7c3aed; --expense-category-hover-base:#6d28d9; --expense-category:var(--expense-category-base); --expense-category-hover:var(--expense-category-hover-base); --expense-category-soft:rgba(124,58,237,.14); --expense-field-border:rgba(124,58,237,.45); --expense-focus-shadow:rgba(124,58,237,.32); }
 .monthly-expenses-page { width:100%; min-height:520px; padding:20px; box-sizing:border-box; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); }
 .monthly-expenses-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom:18px; }
 .monthly-expenses-header h2 { margin:2px 0 0; color:var(--text-h); font-size:1.35rem; }
@@ -31,7 +31,6 @@
 .monthly-expense-screen-content { width:100%; max-width:720px; margin:0 auto; display:flex; flex-direction:column; gap:18px; box-sizing:border-box; }
 .monthly-expense-screen-header { display:flex; align-items:center; gap:14px; padding:18px 20px; background:var(--bg-card); border:1px solid var(--border); border-radius:20px; box-shadow:var(--shadow); }
 .create-expense-header { justify-content:space-between; }
-.create-expense-header { border-color:var(--expense-field-border); }
 .create-expense-header .create-expense-title span { color:var(--expense-category); font-weight:800; }
 .expense-theme-fixed .monthly-expense-screen-save:not(:disabled),
 .expense-theme-variable .monthly-expense-screen-save:not(:disabled),
@@ -70,7 +69,6 @@
 .monthly-expense-input > span { position:absolute; left:14px; z-index:1; color:var(--expense-category); font-size:.95rem; font-weight:700; pointer-events:none; user-select:none; }
 .monthly-expense-input input { width:100%; min-width:0; padding:11px 16px 11px 46px; border:1px solid var(--expense-field-border); border-radius:10px; background:var(--code-bg); color:var(--text-h); box-sizing:border-box; transition:border-color .2s ease, background-color .2s ease, box-shadow .2s ease; }
 .monthly-expense-input input::placeholder { color:var(--expense-category); opacity:.55; }
-.monthly-expense-input input:focus { outline:none; border-color:var(--expense-category-hover); background:var(--code-bg); box-shadow:0 0 13px 1px var(--expense-focus-shadow); }
 @media(max-width:480px){
   .create-expense-header{gap:10px}
   .create-expense-title{gap:10px}
@@ -113,7 +111,6 @@
 .expense-manager-info { display:flex; align-items:center; min-width:0; }
 .expense-manager-info strong { color:var(--text-h); font-size:1rem; line-height:1.35; }
 .expense-manager-row .monthly-expense-input input { width:100%; min-width:0; box-sizing:border-box; background:var(--code-bg); border-color:var(--expense-field-border); }
-.expense-manager-row .monthly-expense-input input:focus { outline:none; border-color:var(--expense-category-hover); background:var(--code-bg); box-shadow:0 0 13px 1px var(--expense-focus-shadow); }
 .expense-manager-controls { display:flex; align-items:center; gap:8px; min-width:0; }
 .expense-manager-controls .monthly-expense-input { flex:1; min-width:0; }
 .expense-delete-btn,
@@ -141,4 +138,80 @@
   .monthly-expense-manager { padding:10px 14px; border-radius:16px; }
   .expense-manager-row { grid-template-columns:1fr; gap:8px; padding:12px 0 14px; }
   .expense-manager-controls { width:100%; }
+}
+
+.expense-field-settings { padding:18px 20px; border:1px solid var(--border); border-radius:16px; background:var(--bg-card); display:flex; flex-direction:column; gap:14px; }
+.expense-field-create { display:flex; flex-direction:column; gap:8px; }
+.expense-field-create label { color:var(--text-h); font-weight:700; }
+.expense-field-create > div { display:flex; gap:8px; flex-wrap:wrap; }
+.expense-field-create input { flex:1; min-width:140px; padding:12px; border:1px solid var(--border); border-radius:10px; background:var(--code-bg); color:var(--text-h); font:inherit; }
+.expense-field-create button { display:flex; align-items:center; gap:6px; }
+.expense-field-settings button:disabled { opacity:.5; cursor:default; }
+.expense-field-setting-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+.expense-field-setting-row span { min-width:0; overflow-wrap:anywhere; color:var(--text-h); }
+.expense-field-setting-row small { display:block; color:var(--text); }
+.expense-field-setting-row button { flex-shrink:0; }
+.field-notice { margin:0; padding:12px 16px; border:1px solid #15803d; border-radius:10px; color:var(--text-h); background:var(--bg-card); }
+
+.expense-field-settings .expense-fields-toggle { color:var(--expense-category); display:flex; align-items:center; justify-content:space-between; gap:12px; width:100%; }
+.expense-fields-toggle svg { flex-shrink:0; width:20px; height:20px; }
+
+.expense-field-settings .expense-fields-toggle:hover,
+.expense-field-settings .expense-fields-toggle:active,
+.expense-field-settings .expense-fields-toggle:focus {
+  color: var(--expense-category);
+}
+
+:root.dark :is(.expense-theme-fixed, .expense-theme-supplier) .monthly-expense-field > span,
+:root.dark :is(.expense-theme-fixed, .expense-theme-supplier) .expense-manager-info strong {
+  color: #fff;
+}
+
+:root.dark .monthly-expense-form-screen:is(.expense-theme-fixed, .expense-theme-supplier) {
+  --expense-category: color-mix(in srgb, var(--expense-category-base) 80%, white 20%);
+  --expense-category-hover: color-mix(in srgb, var(--expense-category-hover-base) 80%, white 20%);
+  --expense-category-soft: color-mix(in srgb, var(--expense-category) 14%, transparent);
+  --expense-field-border: color-mix(in srgb, var(--expense-category) 45%, transparent);
+  --expense-focus-shadow: color-mix(in srgb, var(--expense-category) 32%, transparent);
+  --accent: var(--expense-category);
+  --accent-hover: var(--expense-category-hover);
+  --accent-bg: var(--expense-category-soft);
+  --accent-border: var(--expense-field-border);
+}
+
+.monthly-expense-form-screen .monthly-expense-input input:focus,
+.monthly-expense-form-screen .expense-field-create input:focus {
+  outline: none;
+  border-color: var(--expense-category);
+  box-shadow: 0 0 0 3px var(--expense-category-soft);
+}
+
+.expense-theme-variable .expense-field-create .btn-primary {
+  background: var(--expense-category);
+  box-shadow: 0 4px 10px var(--expense-category-soft);
+}
+.expense-theme-variable .expense-field-create .btn-primary:hover:not(:disabled) {
+  background: var(--expense-category-hover);
+}
+
+.monthly-expense-form-screen.create-expense-screen {
+  --expense-topbar-height: 5.5rem;
+  padding-top: calc(var(--expense-topbar-height) + env(safe-area-inset-top) + 20px);
+}
+.create-expense-screen .create-expense-header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 100;
+  height: calc(var(--expense-topbar-height) + env(safe-area-inset-top));
+  box-sizing: border-box;
+  padding: calc(12px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right), calc((100% - 680px) / 2)) 12px max(16px, env(safe-area-inset-left), calc((100% - 680px) / 2));
+  border: 0;
+  border-bottom: 2px solid var(--expense-category);
+  border-radius: 0;
+  box-shadow: none;
+}
+.create-expense-screen input {
+  scroll-margin-top: calc(var(--expense-topbar-height) + env(safe-area-inset-top) + 20px);
 }

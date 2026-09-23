@@ -1,4 +1,5 @@
 import Dexie, { type Table } from 'dexie'
+import { defaultExpenseFields, type ExpenseField } from './expenseFields.ts'
 
 export interface Transaction {
   id?: number // Primary key, auto-incremented
@@ -93,8 +94,10 @@ export class FinanceDB extends Dexie {
   recordMigrationBackups!: Table<RecordMigrationBackup>
   monthlyExpenses!: Table<MonthlyExpense>
 
-  constructor() {
-    super('FinanceDB')
+  expenseFields!: Table<ExpenseField, string>
+
+  constructor(name = 'FinanceDB') {
+    super(name)
     this.version(2).stores({
       transactions: '++id, description, amount, type, category, date',
       dailyRecords: 'id, date, shift'
@@ -124,6 +127,14 @@ export class FinanceDB extends Dexie {
       dailyRecords: 'id, date, shift',
       recordMigrationBackups: 'id, migratedAt',
       monthlyExpenses: '++id, month, type, fieldId, createdAt'
+    })
+    this.version(6).stores({
+      expenseFields: 'id, type, order'
+    }).upgrade(async transaction => {
+      await transaction.table('expenseFields').bulkPut(defaultExpenseFields())
+    })
+    this.on('populate', transaction => {
+      return transaction.table('expenseFields').bulkPut(defaultExpenseFields())
     })
   }
 }

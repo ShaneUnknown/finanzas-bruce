@@ -1,30 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FiArrowLeft, FiPlus, FiSave, FiTrash2, FiX } from 'react-icons/fi'
+import { liveQuery } from 'dexie'
+import { FiArrowLeft, FiChevronDown, FiChevronUp, FiPlus, FiSave, FiTrash2, FiX } from 'react-icons/fi'
 import { useBlocker, useNavigate, useParams } from 'react-router-dom'
 import { db, type MonthlyExpense, type MonthlyExpenseType } from '../db/financeDB'
+import type { ExpenseField } from '../db/expenseFields'
+import { createExpenseField, setExpenseFieldActive, saveMonthlyExpenses } from '../db/expenseFieldActions'
 import './MonthlyExpensesPage.css'
 
 interface Props { month: string }
-type ExpenseField = { id: string; label: string }
 const TABS: { id: MonthlyExpenseType; label: string }[] = [
   { id: 'fixed', label: 'Fijos' }, { id: 'variable', label: 'Variables' }, { id: 'supplier', label: 'Proveedores' },
 ]
-const FIELDS: Record<MonthlyExpenseType, ExpenseField[]> = {
-  fixed: [
-    { id: 'food', label: 'Gastos comida' }, { id: 'kitchen_rosa', label: 'Gastos cocina (Rosa)' },
-    { id: 'kitchen_silvia', label: 'Gastos cocina (Silvia)' }, { id: 'local_rent', label: 'Pago local' },
-    { id: 'electricity', label: 'Pago luz' }, { id: 'water', label: 'Pago agua' },
-    { id: 'staff_leticia', label: 'Pago personal - Leticia' }, { id: 'staff_silvia', label: 'Pago personal - Silvia' },
-    { id: 'staff_rosa', label: 'Pago personal - Rosa' }, { id: 'room', label: 'Pago cuarto' },
-    { id: 'internet', label: 'Pago internet' }, { id: 'chiclayo', label: 'Pedido Chiclayo' },
-  ],
-  variable: [{ id: 'mercado_libre', label: 'Pedidos Mercado Libre' }],
-  supplier: [
-    { id: 'biocenter', label: 'Pedido Bio Center' }, { id: 'eco_valle', label: 'Pedido Eco Valle' },
-    { id: 'nutricost', label: 'Pedido Nutricost' }, { id: 'amagreen', label: 'Pedido Amagreen' },
-    { id: 'honey', label: 'Pedido Miel de Abejas' }, { id: 'mero_macho', label: 'Pedido Mero Macho' },
-  ],
-}
 const money = (amount: number) => 'S/. ' + amount.toLocaleString('es-PE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 
 export function MonthlyExpensesPage({ month }: Props) {
@@ -211,13 +197,73 @@ export function MonthlyExpenseFormPage() {
   const navigate = useNavigate()
   const [values, setValues] = useState<Record<string, string>>({})
   const [saving, setSaving] = useState(false)
+  const [fields, setFields] = useState<ExpenseField[]>([])
+  const [fieldsLoading, setFieldsLoading] = useState(true)
+  const [fieldName, setFieldName] = useState('')
+  const [managingFields, setManagingFields] = useState(false)
+  const [fieldBusy, setFieldBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [fieldNotice, setFieldNotice] = useState<string | null>(null)
+  const [viewportTop, setViewportTop] = useState(0)
   const [showUnsavedDialog, setShowUnsavedDialog] = useState(false)
   const allowNavigation = useRef(false)
   const blockedLocation = useRef<{ pathname: string; search: string; hash: string; state: unknown } | null>(null)
   const formType: MonthlyExpenseType = expenseType === 'variable' || expenseType === 'supplier' ? expenseType : 'fixed'
   const currentMonth = new Date().toISOString().slice(0, 7)
   const month = routeMonth && /^\d{4}-\d{2}$/.test(routeMonth) ? routeMonth : currentMonth
-  const hasUnsavedChanges = Object.values(values).some(value => value.trim() !== '')
+  useEffect(() => {
+    const visualViewport = window.visualViewport
+    if (!visualViewport) return
+    const updateViewportTop = () => setViewportTop(Math.max(0, visualViewport.offsetTop))
+    updateViewportTop()
+    visualViewport.addEventListener('resize', updateViewportTop)
+    visualViewport.addEventListener('scroll', updateViewportTop)
+    return () => {
+      visualViewport.removeEventListener('resize', updateViewportTop)
+      visualViewport.removeEventListener('scroll', updateViewportTop)
+    }
+  }, [])
+  useEffect(() => {
+    setFieldsLoading(true)
+    const subscription = liveQuery(() => db.expenseFields.where('type').equals(formType).sortBy('order')).subscribe({
+      next: fields => { setFields(fields); setFieldsLoading(false) },
+      error: () => { setError('No se pudieron cargar los campos. Vuelve a abrir esta pantalla.'); setFieldsLoading(false) },
+    })
+    return () => subscription.unsubscribe()
+  }, [formType])
+  const activeFields = fields.filter(field => field.active)
+  const hasAmounts = Object.values(values).some(value => value.trim() !== '')
+  const hasUnsavedChanges = hasAmounts || fieldName.trim() !== ''
+  const createField = async (event: React.FormEvent) => {
+    event.preventDefault()
+    if (fieldBusy) return
+    setFieldBusy(true)
+    setError(null)
+    setFieldNotice(null)
+    try {
+      const field = await createExpenseField(db, formType, fieldName)
+      setFieldName('')
+      setFieldNotice('Campo “' + field.label + '” creado. Ya puedes ingresar su monto.')
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'No se pudo crear el campo.')
+    } finally { setFieldBusy(false) }
+  }
+  const toggleField = async (field: ExpenseField) => {
+    if (fieldBusy) return
+    if (field.active && values[field.id]?.trim()) {
+      setError('Borra o guarda el monto de este campo antes de archivarlo.')
+      return
+    }
+    setFieldBusy(true)
+    setError(null)
+    setFieldNotice(null)
+    try {
+      await setExpenseFieldActive(db, field.id, !field.active)
+      setFieldNotice('Campo “' + field.label + (field.active ? '” archivado.' : '” reactivado.'))
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'No se pudo actualizar el campo.')
+    } finally { setFieldBusy(false) }
+  }
   const blocker = useBlocker(({ currentLocation, nextLocation }) =>
     hasUnsavedChanges
     && !allowNavigation.current
@@ -246,36 +292,64 @@ export function MonthlyExpenseFormPage() {
   const closeForm = () => navigate('/', { state: { month } })
   const saveExpenses = async (event: React.FormEvent) => {
     event.preventDefault()
-    const now = Date.now()
-    const newRecords = FIELDS[formType].flatMap((field, index) => {
-      const amount = Number(values[field.id])
-      return Number.isFinite(amount) && amount > 0
-        ? [{ month, type: formType, fieldId: field.id, label: field.label, amount, createdAt: now + index }]
-        : []
-    })
-    if (!newRecords.length) return
+    if (saving || fieldBusy) return
     setSaving(true)
-    allowNavigation.current = true
-    try { await db.monthlyExpenses.bulkAdd(newRecords); navigate('/', { state: { month } }) }
-    finally { setSaving(false) }
+    setError(null)
+    try {
+      if (fieldName.trim()) throw new Error('Crea el campo pendiente o borra su nombre antes de guardar los gastos.')
+      await saveMonthlyExpenses(db, formType, month, values)
+      allowNavigation.current = true
+      navigate('/', { state: { month } })
+    } catch (error) {
+      setError(error instanceof Error ? error.message : 'No se pudieron guardar los gastos. Inténtalo otra vez.')
+    } finally { setSaving(false) }
   }
+
   return (
-    <main className={'monthly-expense-form-screen expense-theme-' + formType}>
+    <main className={'monthly-expense-form-screen create-expense-screen expense-theme-' + formType}>
       <div className="monthly-expense-screen-content">
-        <header className="monthly-expense-screen-header create-expense-header">
+        <header className="monthly-expense-screen-header create-expense-header" style={{ top: viewportTop }}>
           <div className="create-expense-title">
             <button type="button" className="screen-back-btn" onClick={closeForm} aria-label="Volver"><FiArrowLeft /></button>
             <div><span>Nuevo gasto</span><h1>{TABS.find(tab => tab.id === formType)?.label}</h1></div>
           </div>
-          <button className="btn btn-primary monthly-expense-screen-save" disabled={saving || !hasUnsavedChanges} type="submit" form="new-monthly-expense-form">
+          <button className="btn btn-primary monthly-expense-screen-save" disabled={saving || fieldBusy || fieldsLoading || !hasAmounts} type="submit" form="new-monthly-expense-form">
             <FiSave /> {saving ? 'Guardando…' : 'Guardar'}
           </button>
         </header>
+        {error && <p className="backup-error" role="alert">{error}</p>}
+        {fieldNotice && <p className="field-notice" role="status">{fieldNotice}</p>}
+        <section className="expense-field-settings" aria-label="Personalizar campos">
+          <form onSubmit={createField} className="expense-field-create">
+            <label htmlFor="expense-field-name">Crear campo en {TABS.find(tab => tab.id === formType)?.label}</label>
+            <div>
+              <input id="expense-field-name" value={fieldName} maxLength={80} placeholder="Ej. Transporte"
+                disabled={fieldBusy || saving || fieldsLoading} onChange={event => setFieldName(event.target.value)} />
+              <button className="btn btn-primary" type="submit" disabled={fieldBusy || saving || fieldsLoading || !fieldName.trim()}><FiPlus /> Crear campo</button>
+            </div>
+          </form>
+          <button type="button" className="btn btn-secondary expense-fields-toggle" aria-expanded={managingFields}
+            onClick={() => setManagingFields(previous => !previous)}>
+            <span>Administrar campos</span>
+            {managingFields ? <FiChevronUp aria-hidden="true" /> : <FiChevronDown aria-hidden="true" />}
+          </button>
+          {managingFields && <div className="expense-field-management">
+            <p>Los campos se guardan para todos los meses. Archivarlos conserva los gastos anteriores.</p>
+            {fields.map(field => <div className="expense-field-setting-row" key={field.id}>
+              <span>{field.label}{!field.active && <small>Archivado</small>}</span>
+              <button type="button" className="btn btn-secondary" disabled={fieldBusy || saving}
+                aria-label={(field.active ? 'Archivar ' : 'Reactivar ') + field.label}
+                onClick={() => void toggleField(field)}>{field.active ? 'Archivar' : 'Reactivar'}</button>
+            </div>)}
+          </div>}
+        </section>
         <form id="new-monthly-expense-form" className="monthly-expense-screen-form" onSubmit={saveExpenses}>
           <div className="monthly-expense-screen-body">
+            {fieldsLoading && <p role="status">Cargando campos…</p>}
+            {!fieldsLoading && !activeFields.length && <p>No hay campos activos. Crea uno o reactiva un campo archivado.</p>}
             <div className={formType === 'fixed' ? 'monthly-expense-fields two-columns' : 'monthly-expense-fields'}>
-              {FIELDS[formType].map(field => <label className="monthly-expense-field" key={field.id}><span>{field.label}</span><div className="monthly-expense-input"><span>S/.</span>
-                <input type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00" value={values[field.id] ?? ''}
+              {activeFields.map(field => <label className="monthly-expense-field" key={field.id}><span>{field.label}</span><div className="monthly-expense-input"><span>S/.</span>
+                <input disabled={saving || fieldBusy} type="number" min="0" step="0.01" inputMode="decimal" placeholder="0.00" value={values[field.id] ?? ''}
                   onChange={event => setValues(previous => ({ ...previous, [field.id]: event.target.value }))} /></div></label>)}
             </div>
           </div>
@@ -286,7 +360,7 @@ export function MonthlyExpenseFormPage() {
         <div className="modal-overlay">
           <div className="modal-card" role="dialog" aria-modal="true" aria-labelledby="form-unsaved-title">
             <div className="modal-header"><h3 id="form-unsaved-title">¿Descartar cambios?</h3><button type="button" className="modal-close-btn" onClick={dismissUnsavedDialog} aria-label="Cerrar"><FiX /></button></div>
-            <div className="modal-body"><p>Tienes montos ingresados sin guardar. Si sales ahora, se perderán los cambios.</p></div>
+            <div className="modal-body"><p>Tienes montos o un nombre de campo sin guardar. Si sales ahora, se perderán esos cambios.</p></div>
             <div className="modal-footer"><button type="button" className="btn btn-secondary" onClick={dismissUnsavedDialog}>Seguir editando</button><button type="button" className="btn btn-danger" onClick={discardAndLeave}>Descartar</button></div>
           </div>
         </div>

@@ -14,11 +14,26 @@ import { useAuth } from './auth/useAuth'
 import { WelcomePage } from './components/WelcomePage'
 import { getBytes, getMetadata, listAll, ref, uploadBytes } from 'firebase/storage'
 import { storage } from './firebase'
+import { createBackup, restoreBackup, BACKUP_SCHEMA_VERSION } from './db/backup'
 import 'swiper/css'
 import 'swiper/css/pagination'
 import './App.css'
 
 const CLOUD_BACKUP_CHECK_INTERVAL = 24 * 60 * 60 * 1000
+
+function backupErrorMessage(error: unknown): string {
+  const code = typeof error === 'object' && error !== null && 'code' in error ? String(error.code) : ''
+  const messages: Record<string, string> = {
+    'backup/offline': 'No tienes conexión. Conéctate a internet e intenta subir el respaldo otra vez.',
+    'storage/unauthenticated': 'Tu sesión ha caducado. Vuelve a iniciar sesión e intenta subir el respaldo.',
+    'storage/unauthorized': 'Tu cuenta no tiene permiso para subir el respaldo. Revisa los permisos de Firebase Storage.',
+    'storage/quota-exceeded': 'Se ha superado la cuota de Firebase Storage. Revisa el almacenamiento del proyecto.',
+    'storage/retry-limit-exceeded': 'La subida agotó el tiempo de espera. Revisa tu conexión e inténtalo otra vez.',
+    'storage/bucket-not-found': 'No se encontró el almacenamiento del proyecto. Revisa la configuración de Firebase Storage.',
+    'storage/canceled': 'La subida del respaldo se canceló. Puedes intentarlo otra vez.',
+  }
+  return messages[code] ?? ('No se pudo subir el respaldo. Inténtalo otra vez.' + (code ? ' Código: ' + code + '.' : ''))
+}
 
 function Dashboard() {
   const { logOut, user } = useAuth()
@@ -77,18 +92,13 @@ function Dashboard() {
   const closeExportDialog = () => setShowExportModal(false)
   const [backupUploading, setBackupUploading] = useState(false)
   const [backupError, setBackupError] = useState<string | null>(null)
+  const [backupSuccess, setBackupSuccess] = useState<string | null>(null)
   const backupCheckKey = 'cloud_backup_last_check_' + user?.uid
   const [autoRestoreFinished, setAutoRestoreFinished] = useState(false)
   const autoRestoreStarted = useRef(false)
 
   // Visibility constraints
   const isExportVisible = !lastBackupTime || (Date.now() - parseInt(lastBackupTime, 10)) > 7 * 24 * 60 * 60 * 1000
-  const lastBackupDate = lastBackupTime ? new Date(parseInt(lastBackupTime, 10)) : null
-  const today = new Date()
-  const hasBackupToday = Boolean(lastBackupDate
-    && lastBackupDate.getFullYear() === today.getFullYear()
-    && lastBackupDate.getMonth() === today.getMonth()
-    && lastBackupDate.getDate() === today.getDate())
 
   useEffect(() => { if (autoRestoreFinished && isExportVisible && navigator.onLine) setShowExportModal(true) }, [autoRestoreFinished, isExportVisible])
 
@@ -189,43 +199,6 @@ function Dashboard() {
     setSelectedDay(currentDate.getDate())
   }
 
-  const createBackup = async () => {
-    const [dailyRecords, storedMonthlyExpenses] = await Promise.all([
-      db.dailyRecords.toArray(),
-      db.monthlyExpenses.toArray(),
-    ])
-    const now = new Date()
-    const timestamp = now.toISOString().replace(/[:.]/g, '-').slice(0, 19)
-    return {
-      fileName: 'respaldo_finanzas_' + timestamp + '.json',
-      json: JSON.stringify({
-        schemaVersion: 2,
-        exportedAt: now.toISOString(),
-        dailyRecords,
-        monthlyExpenses: storedMonthlyExpenses,
-      }, null, 2),
-    }
-  }
-
-  const parseBackup = (content: string) => {
-    const parsed = JSON.parse(content) as DailyRecord[] | { dailyRecords?: DailyRecord[]; monthlyExpenses?: MonthlyExpense[] }
-    const records = Array.isArray(parsed) ? parsed : parsed.dailyRecords
-    const restoredMonthlyExpenses = Array.isArray(parsed) ? [] : (parsed.monthlyExpenses ?? [])
-    if (!Array.isArray(records) || !Array.isArray(restoredMonthlyExpenses)) throw new Error('Respaldo inválido.')
-    for (const rec of records) {
-      if (!rec.id || !rec.date || !rec.shift || rec.income === undefined || rec.expense === undefined || rec.productSales === undefined) throw new Error('El respaldo contiene registros inválidos.')
-    }
-    return { records, restoredMonthlyExpenses }
-  }
-
-  const restoreBackup = async (content: string) => {
-    const { records, restoredMonthlyExpenses } = parseBackup(content)
-    await db.transaction('rw', db.dailyRecords, db.monthlyExpenses, async () => {
-      await db.dailyRecords.bulkPut(records)
-      if (restoredMonthlyExpenses.length) await db.monthlyExpenses.bulkPut(restoredMonthlyExpenses)
-    })
-  }
-
   useEffect(() => {
     if (!user) return
 
@@ -237,11 +210,13 @@ function Dashboard() {
 
       autoRestoreStarted.current = true
       try {
-        const [dailyRecordCount, monthlyExpenseCount] = await Promise.all([
+        const [dailyRecordCount, monthlyExpenseCount, storedFields] = await Promise.all([
           db.dailyRecords.count(),
           db.monthlyExpenses.count(),
+          db.expenseFields.toArray(),
         ])
         const hasLocalData = dailyRecordCount > 0 || monthlyExpenseCount > 0
+          || storedFields.some(field => field.id.startsWith('custom_') || !field.active)
         const lastCheck = Number(localStorage.getItem(backupCheckKey) ?? 0)
 
         // Si ya existen datos locales, Storage solo se consulta una vez al día.
@@ -258,7 +233,7 @@ function Dashboard() {
         setLastBackupTime(cloudBackupTime)
         if (hasLocalData) return
         const bytes = await getBytes(latestBackup, 10 * 1024 * 1024)
-        await restoreBackup(new TextDecoder().decode(bytes))
+        await restoreBackup(db, new TextDecoder().decode(bytes))
         setUpdateTrigger(previous => previous + 1)
       } catch (error) {
         console.error('Error al restaurar el respaldo automático:', error)
@@ -277,24 +252,28 @@ function Dashboard() {
   }, [user, backupCheckKey])
 
   const handleCloudBackup = async () => {
-    if (!user) return
+    if (!user || backupUploading) return
     setBackupUploading(true)
     setBackupError(null)
+    setBackupSuccess(null)
     try {
-      const backup = await createBackup()
+      if (!navigator.onLine) throw { code: 'backup/offline' }
+      const backup = await createBackup(db)
       const backupRef = ref(storage, 'finanzas-backups/' + user.uid + '/' + backup.fileName)
       await uploadBytes(backupRef, new Blob([backup.json], { type: 'application/json' }), {
         contentType: 'application/json',
-        customMetadata: { app: 'finanzas-bruce', schemaVersion: '2' },
+        customMetadata: { app: 'finanzas-bruce', schemaVersion: String(BACKUP_SCHEMA_VERSION) },
       })
       const now = Date.now().toString()
-      localStorage.setItem('last_cloud_backup_time', now)
       setLastBackupTime(now)
-      setShowExportModal(false)
+      // El respaldo ya está en Firebase aunque falle guardar el recordatorio local.
+      try { localStorage.setItem('last_cloud_backup_time', now) }
+      catch (error) { console.error('No se pudo guardar la fecha del respaldo:', error) }
+      setBackupSuccess('Respaldo subido correctamente a Firebase. Tus turnos, gastos mensuales y campos personalizados quedaron respaldados.')
       closeExportDialog()
     } catch (error) {
       console.error('Error al subir copia de seguridad:', error)
-      setBackupError('No se pudo subir el respaldo. Verifica que Firebase Storage esté habilitado e inténtalo otra vez.')
+      setBackupError(backupErrorMessage(error))
       setShowExportModal(true)
     } finally {
       setBackupUploading(false)
@@ -304,13 +283,18 @@ function Dashboard() {
 
   return (
     <div className="dashboard-container">
+      {backupSuccess && (
+        <div className="backup-success" role="status">
+          <span>{backupSuccess}</span>
+          <button type="button" onClick={() => setBackupSuccess(null)} aria-label="Cerrar confirmación del respaldo"><FiX /></button>
+        </div>
+      )}
       <header className="dashboard-header">
         <div className="header-top">
           <div className="title-area">
             <h1>Gestión de Finanzas</h1>
           </div>
           <div className="header-actions">
-            {!hasBackupToday && (
               <button
                 type="button"
                 className="header-action-btn"
@@ -321,7 +305,6 @@ function Dashboard() {
               >
                 <FiUploadCloud />
               </button>
-            )}
             <button type="button" className="header-action-btn" onClick={() => setShowLogoutModal(true)} title="Cerrar sesión" aria-label="Cerrar sesión">
               <FiLogOut />
             </button>
@@ -500,8 +483,9 @@ function Dashboard() {
               </button>
             </div>
             <div className="modal-body">
-              <p>Guarda en Firebase Storage una copia JSON de los turnos y gastos mensuales de este dispositivo.</p>
+              <p>Guarda en Firebase Storage una copia JSON de los turnos, gastos mensuales y campos personalizados de este dispositivo.</p>
               <p className="modal-warning">El recordatorio volverá a mostrarse una semana después de una subida exitosa.</p>
+              {backupUploading && <p role="status">Subiendo respaldo a Firebase…</p>}
               {backupError && <p className="backup-error" role="alert">{backupError}</p>}
             </div>
             <div className="modal-footer">
